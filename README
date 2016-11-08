@@ -1,4 +1,4 @@
-openexr
+exr
 =======
 
-openexr is go implentation of openexr file importer/exporter.
+exr is go implentation of OpenEXR file importer/exporter.
