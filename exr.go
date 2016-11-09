@@ -21,6 +21,16 @@ func Decode(path string) (image.Image, error) {
 	if !bytes.Equal(magic, MagicNumber) {
 		return nil, fmt.Errorf("wrong magic number: %v, need %v", magic, MagicNumber)
 	}
+
+	// Version field: 4 bytes
+	// first byte: version number
+	// 2-4  bytes: set of boolean flags
+	versionByte := make([]byte, 4)
+	r.Read(versionByte)
+	version := int(versionByte[0])
+	fmt.Println(version)
+
+	// TODO: parse boolean flags
 	return nil, nil
 }
 
