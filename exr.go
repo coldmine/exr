@@ -2,13 +2,13 @@ package exr
 
 import (
 	"bufio"
-	"bytes"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"os"
 )
 
-var MagicNumber = []byte{0x76, 0x2f, 0x31, 0x01}
+var MagicNumber = 20000630
 
 func Decode(path string) (image.Image, error) {
 	f, err := os.Open(path)
@@ -16,9 +16,12 @@ func Decode(path string) (image.Image, error) {
 		return nil, err
 	}
 	r := bufio.NewReader(f)
-	magic := make([]byte, 4)
-	r.Read(magic)
-	if !bytes.Equal(magic, MagicNumber) {
+
+	// Magic number: 4 bytes
+	magicByte := make([]byte, 4)
+	r.Read(magicByte)
+	magic := int(binary.LittleEndian.Uint32(magicByte))
+	if magic != MagicNumber {
 		return nil, fmt.Errorf("wrong magic number: %v, need %v", magic, MagicNumber)
 	}
 
