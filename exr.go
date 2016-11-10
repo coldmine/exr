@@ -33,7 +33,56 @@ func Decode(path string) (image.Image, error) {
 	version := int(versionByte[0])
 	fmt.Println(version)
 
-	// TODO: parse boolean flags
+	// Parse image type
+	var singlePartScanLine bool
+	var singlePartTiled bool
+	var singlePartDeep bool
+	var multiPart bool
+	var multiPartDeep bool
+	versionInt := int(binary.LittleEndian.Uint32(versionByte))
+	if versionInt&0x200 != 0 {
+		singlePartTiled = true
+	}
+	if !singlePartTiled {
+		deep := false
+		if versionInt&0x800 != 0 {
+			deep = true
+		}
+		multi := false
+		if versionInt&0x1000 != 0 {
+			multi = true
+		}
+		if multi && !deep {
+			multiPart = true
+		} else if multi && deep {
+			multiPartDeep = true
+		} else if !multi && deep {
+			singlePartDeep = true
+		} else {
+			singlePartScanLine = true
+		}
+	}
+	if singlePartScanLine {
+		fmt.Println("It is single-part scanline image.")
+	} else if singlePartTiled {
+		fmt.Println("It is single-part tiled image.")
+	} else if singlePartDeep {
+		fmt.Println("It is single-part deep image.")
+	} else if multiPart {
+		fmt.Println("It is multi-part image.")
+	} else if multiPartDeep {
+		fmt.Println("It is multi-part deep image.")
+	}
+
+	// Check image could have long attribute name
+	var longAttrName bool
+	if versionInt&0x400 != 0 {
+		longAttrName = true
+	}
+	if longAttrName {
+		fmt.Println("It could have long attribute names")
+	}
+
 	return nil, nil
 }
 
