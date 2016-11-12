@@ -3,6 +3,7 @@ package exr
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -86,9 +87,95 @@ func Decode(path string) (image.Image, error) {
 		fmt.Println("It could have long attribute names")
 	}
 
+	// Parse attributes of a header.
+	attrs := make([]attribute, 0)
+	for {
+		pAttr, err := parseAttribute(r, parse)
+		if err != nil {
+			fmt.Println("Could not read header: ", err)
+			os.Exit(1)
+		}
+		if pAttr == nil {
+			// Header ends.
+			break
+		}
+		attr := *pAttr
+		fmt.Println(attr.name, attr.size)
+		attrs = append(attrs, attr)
+	}
+
 	return nil, nil
 }
 
+type attribute struct {
+	name  string
+	typ   string
+	size  int
+	value []byte // TODO: parse it.
+}
+
+// parseAttribute parses an attribute of a header.
+//
+// It returns one of following forms.
+//
+// 	(*attribute, nil) if it reads from reader well.
+// 	(nil, error) if any error occurred when read.
+// 	(nil, nil) if the header ends.
+//
+func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error) {
+	nameByte, err := r.ReadBytes(0x00)
+	if err != nil {
+		return nil, err
+	}
+	if len(nameByte) == 1 {
+		// Header ends.
+		return nil, nil
+	}
+	// TODO: Properly validate length of attribute name.
+	if len(nameByte) > 255 {
+		return nil, errors.New("attribute name too long.")
+	}
+	name := string(nameByte)
+
+	typeByte, err := r.ReadBytes(0x00)
+	if err != nil {
+		return nil, err
+	}
+	typ := string(typeByte)
+	// TODO: Should I validate the length of attribute type?
+
+	sizeByte := make([]byte, 4)
+	_, err = r.Read(sizeByte)
+	if err != nil {
+		return nil, err
+	}
+	size := int(parse.Uint32(sizeByte))
+
+	valueByte := make([]byte, 0, size)
+	remain := size
+	for remain > 0 {
+		s := remain
+		if remain > bufio.MaxScanTokenSize {
+			s = bufio.MaxScanTokenSize
+		}
+		b := make([]byte, s)
+		n, err := r.Read(b)
+		if err != nil {
+			return nil, err
+		}
+		b = b[:n]
+		remain -= n
+		valueByte = append(valueByte, b...)
+	}
+
+	attr := attribute{
+		name:  name,
+		typ:   typ,
+		size:  size,
+		value: valueByte,
+	}
+	return &attr, nil
+}
 func fromScanLineFile() {}
 
 func fromSinglePartFile() {}
