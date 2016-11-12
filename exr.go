@@ -17,10 +17,13 @@ func Decode(path string) (image.Image, error) {
 	}
 	r := bufio.NewReader(f)
 
+	// EXR file have little endian form.
+	parse := binary.LittleEndian
+
 	// Magic number: 4 bytes
 	magicByte := make([]byte, 4)
 	r.Read(magicByte)
-	magic := int(binary.LittleEndian.Uint32(magicByte))
+	magic := int(parse.Uint32(magicByte))
 	if magic != MagicNumber {
 		return nil, fmt.Errorf("wrong magic number: %v, need %v", magic, MagicNumber)
 	}
@@ -39,7 +42,7 @@ func Decode(path string) (image.Image, error) {
 	var singlePartDeep bool
 	var multiPart bool
 	var multiPartDeep bool
-	versionInt := int(binary.LittleEndian.Uint32(versionByte))
+	versionInt := int(parse.Uint32(versionByte))
 	if versionInt&0x200 != 0 {
 		singlePartTiled = true
 	}
