@@ -23,7 +23,11 @@ func Decode(path string) (image.Image, error) {
 
 	// Magic number: 4 bytes
 	magicByte := make([]byte, 4)
-	r.Read(magicByte)
+	_, err = r.Read(magicByte)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 	magic := int(parse.Uint32(magicByte))
 	if magic != MagicNumber {
 		return nil, fmt.Errorf("wrong magic number: %v, need %v", magic, MagicNumber)
@@ -33,7 +37,11 @@ func Decode(path string) (image.Image, error) {
 	// first byte: version number
 	// 2-4  bytes: set of boolean flags
 	versionByte := make([]byte, 4)
-	r.Read(versionByte)
+	_, err = r.Read(versionByte)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 	version := int(versionByte[0])
 	fmt.Println(version)
 
@@ -122,7 +130,11 @@ func Decode(path string) (image.Image, error) {
 	offsets := make([]int64, 0, lineCount)
 	for i := 0; i < lineCount; i++ {
 		offsetByte := make([]byte, 8)
-		r.Read(offsetByte)
+		_, err := r.Read(offsetByte)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 		offset := int64(parse.Uint64(offsetByte))
 		offsets = append(offsets, offset)
 	}
