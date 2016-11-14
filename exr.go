@@ -117,6 +117,16 @@ func Decode(path string) (image.Image, error) {
 	yMax = int(parse.Uint32(dataWindow.value[12:16]))
 	fmt.Println(xMin, yMin, xMax, yMax)
 
+	// Parse offsets.
+	lineCount := yMax - yMin + 1
+	offsets := make([]int64, 0, lineCount)
+	for i := 0; i < lineCount; i++ {
+		offsetByte := make([]byte, 8)
+		r.Read(offsetByte)
+		offset := int64(parse.Uint64(offsetByte))
+		offsets = append(offsets, offset)
+	}
+
 	return nil, nil
 }
 
