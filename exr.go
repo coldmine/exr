@@ -104,6 +104,19 @@ func Decode(path string) (image.Image, error) {
 		attrs[attr.name] = attr
 	}
 
+	// Check image (x, y) size.
+	dataWindow, ok := attrs["dataWindow"]
+	if !ok {
+		fmt.Println("Header does not have 'dataWindow' attribute")
+		os.Exit(1)
+	}
+	var xMin, yMin, xMax, yMax int
+	xMin = int(parse.Uint32(dataWindow.value[0:4]))
+	yMin = int(parse.Uint32(dataWindow.value[4:8]))
+	xMax = int(parse.Uint32(dataWindow.value[8:12]))
+	yMax = int(parse.Uint32(dataWindow.value[12:16]))
+	fmt.Println(xMin, yMin, xMax, yMax)
+
 	return nil, nil
 }
 
