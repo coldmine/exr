@@ -88,7 +88,7 @@ func Decode(path string) (image.Image, error) {
 	}
 
 	// Parse attributes of a header.
-	attrs := make([]attribute, 0)
+	attrs := make(map[string]attribute)
 	for {
 		pAttr, err := parseAttribute(r, parse)
 		if err != nil {
@@ -101,7 +101,7 @@ func Decode(path string) (image.Image, error) {
 		}
 		attr := *pAttr
 		fmt.Println(attr.name, attr.size)
-		attrs = append(attrs, attr)
+		attrs[attr.name] = attr
 	}
 
 	return nil, nil
