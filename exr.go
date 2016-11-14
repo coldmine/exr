@@ -127,7 +127,8 @@ func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error)
 	if err != nil {
 		return nil, err
 	}
-	if len(nameByte) == 1 {
+	nameByte = nameByte[:len(nameByte)-1] // remove trailing 0x00
+	if len(nameByte) == 0 {
 		// Header ends.
 		return nil, nil
 	}
@@ -138,6 +139,7 @@ func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error)
 	name := string(nameByte)
 
 	typeByte, err := r.ReadBytes(0x00)
+	typeByte = typeByte[:len(typeByte)-1] // remove trailing 0x00
 	if err != nil {
 		return nil, err
 	}
