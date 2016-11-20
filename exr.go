@@ -11,6 +11,30 @@ import (
 
 var MagicNumber = 20000630
 
+type compressionType int
+
+const (
+	NoCompression = compressionType(iota)
+	RLECompression
+	ZIPSCompression
+	ZIPCompression
+	PIZCompression
+	PXR24Compression
+	B44Compression
+	B44ACompression
+)
+
+var numLinesPerBlock = map[compressionType]int{
+	NoCompression:    1,
+	RLECompression:   1,
+	ZIPSCompression:  1,
+	ZIPCompression:   16,
+	PIZCompression:   32,
+	PXR24Compression: 16,
+	B44Compression:   32,
+	B44ACompression:  32,
+}
+
 func Decode(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -125,6 +149,16 @@ func Decode(path string) (image.Image, error) {
 	yMax = int(parse.Uint32(dataWindow.value[12:16]))
 	fmt.Println(xMin, yMin, xMax, yMax)
 
+	// Check compression method.
+	compression, _ := attrs["compression"]
+	if !ok {
+		fmt.Println("Header does not have 'compression' attribute")
+		os.Exit(1)
+	}
+	compressionMethod := compressionType(uint8(compression.value[0]))
+	blockLines := numLinesPerBlock[compressionMethod]
+	fmt.Println(blockLines)
+
 	// Parse offsets.
 	lineCount := yMax - yMin + 1
 	offsets := make([]int64, 0, lineCount)
@@ -213,6 +247,7 @@ func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error)
 	}
 	return &attr, nil
 }
+
 func fromScanLineFile() {}
 
 func fromSinglePartFile() {}
