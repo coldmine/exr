@@ -160,18 +160,17 @@ func Decode(path string) (image.Image, error) {
 	fmt.Println(blockLines)
 
 	// Parse offsets.
-	lineCount := yMax - yMin + 1
-	offsets := make([]int64, 0, lineCount)
-	for i := 0; i < lineCount; i++ {
-		offsetByte := make([]byte, 8)
-		_, err := r.Read(offsetByte)
+	offsets := make([]uint64, 0)
+	for i := yMin; i <= yMax; i += blockLines {
+		offsetByte, err := read(r, 8)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		offset := int64(parse.Uint64(offsetByte))
+		offset := uint64(parse.Uint64(offsetByte))
 		offsets = append(offsets, offset)
 	}
+	fmt.Println(offsets)
 
 	return nil, nil
 }
@@ -246,6 +245,28 @@ func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error)
 		value: valueByte,
 	}
 	return &attr, nil
+}
+
+// read reads _size_ bytes from *bufio.Reader and return it as ([]byte, error) form.
+// If error occurs during read, it will return nil, error.
+func read(r *bufio.Reader, size int) ([]byte, error) {
+	bs := make([]byte, 0, size)
+	remain := size
+	for remain > 0 {
+		s := remain
+		if remain > bufio.MaxScanTokenSize {
+			s = bufio.MaxScanTokenSize
+		}
+		b := make([]byte, s)
+		n, err := r.Read(b)
+		if err != nil {
+			return nil, err
+		}
+		b = b[:n]
+		remain -= n
+		bs = append(bs, b...)
+	}
+	return bs, nil
 }
 
 func fromScanLineFile() {}
