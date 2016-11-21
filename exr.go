@@ -3,12 +3,37 @@ package exr
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"os"
 )
 
 var MagicNumber = 20000630
+
+type compressionType int
+
+const (
+	NoCompression = compressionType(iota)
+	RLECompression
+	ZIPSCompression
+	ZIPCompression
+	PIZCompression
+	PXR24Compression
+	B44Compression
+	B44ACompression
+)
+
+var numLinesPerBlock = map[compressionType]int{
+	NoCompression:    1,
+	RLECompression:   1,
+	ZIPSCompression:  1,
+	ZIPCompression:   16,
+	PIZCompression:   32,
+	PXR24Compression: 16,
+	B44Compression:   32,
+	B44ACompression:  32,
+}
 
 func Decode(path string) (image.Image, error) {
 	f, err := os.Open(path)
@@ -17,10 +42,17 @@ func Decode(path string) (image.Image, error) {
 	}
 	r := bufio.NewReader(f)
 
+	// EXR file have little endian form.
+	parse := binary.LittleEndian
+
 	// Magic number: 4 bytes
 	magicByte := make([]byte, 4)
-	r.Read(magicByte)
-	magic := int(binary.LittleEndian.Uint32(magicByte))
+	_, err = r.Read(magicByte)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	magic := int(parse.Uint32(magicByte))
 	if magic != MagicNumber {
 		return nil, fmt.Errorf("wrong magic number: %v, need %v", magic, MagicNumber)
 	}
@@ -29,7 +61,11 @@ func Decode(path string) (image.Image, error) {
 	// first byte: version number
 	// 2-4  bytes: set of boolean flags
 	versionByte := make([]byte, 4)
-	r.Read(versionByte)
+	_, err = r.Read(versionByte)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 	version := int(versionByte[0])
 	fmt.Println(version)
 
@@ -39,7 +75,7 @@ func Decode(path string) (image.Image, error) {
 	var singlePartDeep bool
 	var multiPart bool
 	var multiPartDeep bool
-	versionInt := int(binary.LittleEndian.Uint32(versionByte))
+	versionInt := int(parse.Uint32(versionByte))
 	if versionInt&0x200 != 0 {
 		singlePartTiled = true
 	}
@@ -83,7 +119,154 @@ func Decode(path string) (image.Image, error) {
 		fmt.Println("It could have long attribute names")
 	}
 
+	// Parse attributes of a header.
+	attrs := make(map[string]attribute)
+	for {
+		pAttr, err := parseAttribute(r, parse)
+		if err != nil {
+			fmt.Println("Could not read header: ", err)
+			os.Exit(1)
+		}
+		if pAttr == nil {
+			// Header ends.
+			break
+		}
+		attr := *pAttr
+		fmt.Println(attr.name, attr.size)
+		attrs[attr.name] = attr
+	}
+
+	// Check image (x, y) size.
+	dataWindow, ok := attrs["dataWindow"]
+	if !ok {
+		fmt.Println("Header does not have 'dataWindow' attribute")
+		os.Exit(1)
+	}
+	var xMin, yMin, xMax, yMax int
+	xMin = int(parse.Uint32(dataWindow.value[0:4]))
+	yMin = int(parse.Uint32(dataWindow.value[4:8]))
+	xMax = int(parse.Uint32(dataWindow.value[8:12]))
+	yMax = int(parse.Uint32(dataWindow.value[12:16]))
+	fmt.Println(xMin, yMin, xMax, yMax)
+
+	// Check compression method.
+	compression, _ := attrs["compression"]
+	if !ok {
+		fmt.Println("Header does not have 'compression' attribute")
+		os.Exit(1)
+	}
+	compressionMethod := compressionType(uint8(compression.value[0]))
+	blockLines := numLinesPerBlock[compressionMethod]
+	fmt.Println(blockLines)
+
+	// Parse offsets.
+	offsets := make([]uint64, 0)
+	for i := yMin; i <= yMax; i += blockLines {
+		offsetByte, err := read(r, 8)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		offset := uint64(parse.Uint64(offsetByte))
+		offsets = append(offsets, offset)
+	}
+	fmt.Println(offsets)
+
 	return nil, nil
+}
+
+type attribute struct {
+	name  string
+	typ   string
+	size  int
+	value []byte // TODO: parse it.
+}
+
+// parseAttribute parses an attribute of a header.
+//
+// It returns one of following forms.
+//
+// 	(*attribute, nil) if it reads from reader well.
+// 	(nil, error) if any error occurred when read.
+// 	(nil, nil) if the header ends.
+//
+func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error) {
+	nameByte, err := r.ReadBytes(0x00)
+	if err != nil {
+		return nil, err
+	}
+	nameByte = nameByte[:len(nameByte)-1] // remove trailing 0x00
+	if len(nameByte) == 0 {
+		// Header ends.
+		return nil, nil
+	}
+	// TODO: Properly validate length of attribute name.
+	if len(nameByte) > 255 {
+		return nil, errors.New("attribute name too long.")
+	}
+	name := string(nameByte)
+
+	typeByte, err := r.ReadBytes(0x00)
+	typeByte = typeByte[:len(typeByte)-1] // remove trailing 0x00
+	if err != nil {
+		return nil, err
+	}
+	typ := string(typeByte)
+	// TODO: Should I validate the length of attribute type?
+
+	sizeByte := make([]byte, 4)
+	_, err = r.Read(sizeByte)
+	if err != nil {
+		return nil, err
+	}
+	size := int(parse.Uint32(sizeByte))
+
+	valueByte := make([]byte, 0, size)
+	remain := size
+	for remain > 0 {
+		s := remain
+		if remain > bufio.MaxScanTokenSize {
+			s = bufio.MaxScanTokenSize
+		}
+		b := make([]byte, s)
+		n, err := r.Read(b)
+		if err != nil {
+			return nil, err
+		}
+		b = b[:n]
+		remain -= n
+		valueByte = append(valueByte, b...)
+	}
+
+	attr := attribute{
+		name:  name,
+		typ:   typ,
+		size:  size,
+		value: valueByte,
+	}
+	return &attr, nil
+}
+
+// read reads _size_ bytes from *bufio.Reader and return it as ([]byte, error) form.
+// If error occurs during read, it will return nil, error.
+func read(r *bufio.Reader, size int) ([]byte, error) {
+	bs := make([]byte, 0, size)
+	remain := size
+	for remain > 0 {
+		s := remain
+		if remain > bufio.MaxScanTokenSize {
+			s = bufio.MaxScanTokenSize
+		}
+		b := make([]byte, s)
+		n, err := r.Read(b)
+		if err != nil {
+			return nil, err
+		}
+		b = b[:n]
+		remain -= n
+		bs = append(bs, b...)
+	}
+	return bs, nil
 }
 
 func fromScanLineFile() {}
