@@ -118,21 +118,43 @@ func Decode(path string) (image.Image, error) {
 	}
 
 	// Parse attributes of a header.
-	attrs := make(map[string]attribute)
-	for {
-		pAttr, err := parseAttribute(r, parse)
-		if err != nil {
-			fmt.Println("Could not read header: ", err)
-			os.Exit(1)
+	parts := make([]map[string]attribute, 0)
+
+	for i := 0; ; i++ {
+		fmt.Println("== a part ==")
+
+		attrs := make(map[string]attribute)
+		for {
+			pAttr, err := parseAttribute(r, parse)
+			if err != nil {
+				fmt.Println("Could not read header: ", err)
+				os.Exit(1)
+			}
+			if pAttr == nil {
+				// Single header ends.
+				break
+			}
+			attr := *pAttr
+			fmt.Println(attr.name, attr.size)
+			attrs[attr.name] = attr
 		}
-		if pAttr == nil {
-			// Header ends.
+		parts = append(parts, attrs)
+
+		if !multiPart && !multiPartDeep {
 			break
 		}
-		attr := *pAttr
-		fmt.Println(attr.name, attr.size)
-		attrs[attr.name] = attr
+		bs, err := r.Peek(1)
+		if err != nil {
+			fmt.Println("Could not peek:", err)
+			os.Exit(1)
+		}
+		if bs[0] == 0x00 {
+			break
+		}
 	}
+
+	// TODO: Parse multi-part image.
+	attrs := parts[0]
 
 	// Check image (x, y) size.
 	dataWindow, ok := attrs["dataWindow"]
