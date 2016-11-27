@@ -46,8 +46,7 @@ func Decode(path string) (image.Image, error) {
 	parse := binary.LittleEndian
 
 	// Magic number: 4 bytes
-	magicByte := make([]byte, 4)
-	_, err = r.Read(magicByte)
+	magicByte, err := read(r, 4)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -60,8 +59,7 @@ func Decode(path string) (image.Image, error) {
 	// Version field: 4 bytes
 	// first byte: version number
 	// 2-4  bytes: set of boolean flags
-	versionByte := make([]byte, 4)
-	_, err = r.Read(versionByte)
+	versionByte, err := read(r, 4)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -214,28 +212,15 @@ func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error)
 	typ := string(typeByte)
 	// TODO: Should I validate the length of attribute type?
 
-	sizeByte := make([]byte, 4)
-	_, err = r.Read(sizeByte)
+	sizeByte, err := read(r, 4)
 	if err != nil {
 		return nil, err
 	}
 	size := int(parse.Uint32(sizeByte))
 
-	valueByte := make([]byte, 0, size)
-	remain := size
-	for remain > 0 {
-		s := remain
-		if remain > bufio.MaxScanTokenSize {
-			s = bufio.MaxScanTokenSize
-		}
-		b := make([]byte, s)
-		n, err := r.Read(b)
-		if err != nil {
-			return nil, err
-		}
-		b = b[:n]
-		remain -= n
-		valueByte = append(valueByte, b...)
+	valueByte, err := read(r, size)
+	if err != nil {
+		return nil, err
 	}
 
 	attr := attribute{
