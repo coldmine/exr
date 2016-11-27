@@ -123,7 +123,7 @@ func Decode(path string) (image.Image, error) {
 	for i := 0; ; i++ {
 		fmt.Println("== a part ==")
 
-		attrs := make(map[string]attribute)
+		header := make(map[string]attribute)
 		for {
 			pAttr, err := parseAttribute(r, parse)
 			if err != nil {
@@ -136,9 +136,9 @@ func Decode(path string) (image.Image, error) {
 			}
 			attr := *pAttr
 			fmt.Println(attr.name, attr.size)
-			attrs[attr.name] = attr
+			header[attr.name] = attr
 		}
-		parts = append(parts, attrs)
+		parts = append(parts, header)
 
 		if !multiPart && !multiPartDeep {
 			break
@@ -154,10 +154,10 @@ func Decode(path string) (image.Image, error) {
 	}
 
 	// TODO: Parse multi-part image.
-	attrs := parts[0]
+	header := parts[0]
 
 	// Check image (x, y) size.
-	dataWindow, ok := attrs["dataWindow"]
+	dataWindow, ok := header["dataWindow"]
 	if !ok {
 		fmt.Println("Header does not have 'dataWindow' attribute")
 		os.Exit(1)
@@ -170,7 +170,7 @@ func Decode(path string) (image.Image, error) {
 	fmt.Println(xMin, yMin, xMax, yMax)
 
 	// Check compression method.
-	compression, _ := attrs["compression"]
+	compression, _ := header["compression"]
 	if !ok {
 		fmt.Println("Header does not have 'compression' attribute")
 		os.Exit(1)
