@@ -253,9 +253,3 @@ func read(r *bufio.Reader, size int) ([]byte, error) {
 	}
 	return bs, nil
 }
-
-func fromScanLineFile() {}
-
-func fromSinglePartFile() {}
-
-func fromMultiPartFile() {}
