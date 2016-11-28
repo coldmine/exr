@@ -170,7 +170,7 @@ func Decode(path string) (image.Image, error) {
 	fmt.Println(xMin, yMin, xMax, yMax)
 
 	// Check compression method.
-	compression, _ := header["compression"]
+	compression, ok := header["compression"]
 	if !ok {
 		fmt.Println("Header does not have 'compression' attribute")
 		os.Exit(1)
