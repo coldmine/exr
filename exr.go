@@ -2,6 +2,7 @@ package exr
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -156,6 +157,46 @@ func Decode(path string) (image.Image, error) {
 	// TODO: Parse multi-part image.
 	header := parts[0]
 
+	// Parse channels.
+	channels, ok := header["channels"]
+	if !ok {
+		fmt.Println("Header does not have 'channels' attribute")
+		os.Exit(1)
+	}
+	chlist := make([]channel, 0)
+	fmt.Println(channels.value)
+	remain := bufio.NewReader(bytes.NewBuffer(channels.value))
+	for {
+		nameByte, err := remain.ReadBytes(0x00)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		name := string(nameByte[:len(nameByte)-1])
+		pixelType := int32(parse.Uint32(mustRead(remain, 4)))
+		pLinear := uint8(mustRead(remain, 1)[0])
+		_ = mustRead(remain, 3)
+		xSampling := int32(parse.Uint32(mustRead(remain, 4)))
+		ySampling := int32(parse.Uint32(mustRead(remain, 4)))
+		ch := channel{
+			name:      name,
+			pixelType: pixelType,
+			pLinear:   pLinear,
+			xSampling: xSampling,
+			ySampling: ySampling,
+		}
+		fmt.Println(ch)
+		chlist = append(chlist, ch)
+		if remain.Buffered() == 1 {
+			nullByte := mustRead(remain, 1)
+			if int8(nullByte[0]) != 0 {
+				fmt.Printf("channels are must seperated by null byte: got %v\n", nullByte)
+				os.Exit(1)
+			}
+			break
+		}
+	}
+
 	// Check image (x, y) size.
 	dataWindow, ok := header["dataWindow"]
 	if !ok {
@@ -200,6 +241,14 @@ type attribute struct {
 	typ   string
 	size  int
 	value []byte // TODO: parse it.
+}
+
+type channel struct {
+	name      string
+	pixelType int32
+	pLinear   uint8
+	xSampling int32
+	ySampling int32
 }
 
 // parseAttribute parses an attribute of a header.
@@ -274,4 +323,29 @@ func read(r *bufio.Reader, size int) ([]byte, error) {
 		bs = append(bs, b...)
 	}
 	return bs, nil
+}
+
+// mustRead should read _size_ bytes from *bufio.Reader.
+// If it can't by any reason, it will terminate the program.
+//
+// TODO: I think it is not fit to non-main package. Find good replacement of it.
+func mustRead(r *bufio.Reader, size int) []byte {
+	bs := make([]byte, 0, size)
+	remain := size
+	for remain > 0 {
+		s := remain
+		if remain > bufio.MaxScanTokenSize {
+			s = bufio.MaxScanTokenSize
+		}
+		b := make([]byte, s)
+		n, err := r.Read(b)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		b = b[:n]
+		remain -= n
+		bs = append(bs, b...)
+	}
+	return bs
 }
