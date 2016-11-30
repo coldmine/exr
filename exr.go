@@ -2,6 +2,7 @@ package exr
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -46,8 +47,7 @@ func Decode(path string) (image.Image, error) {
 	parse := binary.LittleEndian
 
 	// Magic number: 4 bytes
-	magicByte := make([]byte, 4)
-	_, err = r.Read(magicByte)
+	magicByte, err := read(r, 4)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -60,8 +60,7 @@ func Decode(path string) (image.Image, error) {
 	// Version field: 4 bytes
 	// first byte: version number
 	// 2-4  bytes: set of boolean flags
-	versionByte := make([]byte, 4)
-	_, err = r.Read(versionByte)
+	versionByte, err := read(r, 4)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -120,24 +119,86 @@ func Decode(path string) (image.Image, error) {
 	}
 
 	// Parse attributes of a header.
-	attrs := make(map[string]attribute)
-	for {
-		pAttr, err := parseAttribute(r, parse)
-		if err != nil {
-			fmt.Println("Could not read header: ", err)
-			os.Exit(1)
+	parts := make([]map[string]attribute, 0)
+
+	for i := 0; ; i++ {
+		fmt.Println("== a part ==")
+
+		header := make(map[string]attribute)
+		for {
+			pAttr, err := parseAttribute(r, parse)
+			if err != nil {
+				fmt.Println("Could not read header: ", err)
+				os.Exit(1)
+			}
+			if pAttr == nil {
+				// Single header ends.
+				break
+			}
+			attr := *pAttr
+			fmt.Println(attr.name, attr.size)
+			header[attr.name] = attr
 		}
-		if pAttr == nil {
-			// Header ends.
+		parts = append(parts, header)
+
+		if !multiPart && !multiPartDeep {
 			break
 		}
-		attr := *pAttr
-		fmt.Println(attr.name, attr.size)
-		attrs[attr.name] = attr
+		bs, err := r.Peek(1)
+		if err != nil {
+			fmt.Println("Could not peek:", err)
+			os.Exit(1)
+		}
+		if bs[0] == 0x00 {
+			break
+		}
+	}
+
+	// TODO: Parse multi-part image.
+	header := parts[0]
+
+	// Parse channels.
+	channels, ok := header["channels"]
+	if !ok {
+		fmt.Println("Header does not have 'channels' attribute")
+		os.Exit(1)
+	}
+	chlist := make([]channel, 0)
+	fmt.Println(channels.value)
+	remain := bufio.NewReader(bytes.NewBuffer(channels.value))
+	for {
+		nameByte, err := remain.ReadBytes(0x00)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		name := string(nameByte[:len(nameByte)-1])
+		pixelType := int32(parse.Uint32(mustRead(remain, 4)))
+		pLinear := uint8(mustRead(remain, 1)[0])
+		_ = mustRead(remain, 3)
+		xSampling := int32(parse.Uint32(mustRead(remain, 4)))
+		ySampling := int32(parse.Uint32(mustRead(remain, 4)))
+		ch := channel{
+			name:      name,
+			pixelType: pixelType,
+			pLinear:   pLinear,
+			xSampling: xSampling,
+			ySampling: ySampling,
+		}
+		fmt.Println(ch)
+		chlist = append(chlist, ch)
+		if remain.Buffered() == 1 {
+			nullByte := mustRead(remain, 1)
+			if int8(nullByte[0]) != 0 {
+				fmt.Printf("channels are must seperated by null byte: got %v\n", nullByte)
+				os.Exit(1)
+			}
+			break
+		}
 	}
 
 	// Check image (x, y) size.
-	dataWindow, ok := attrs["dataWindow"]
+	dataWindow, ok := header["dataWindow"]
 	if !ok {
 		fmt.Println("Header does not have 'dataWindow' attribute")
 		os.Exit(1)
@@ -150,7 +211,7 @@ func Decode(path string) (image.Image, error) {
 	fmt.Println(xMin, yMin, xMax, yMax)
 
 	// Check compression method.
-	compression, _ := attrs["compression"]
+	compression, ok := header["compression"]
 	if !ok {
 		fmt.Println("Header does not have 'compression' attribute")
 		os.Exit(1)
@@ -180,6 +241,14 @@ type attribute struct {
 	typ   string
 	size  int
 	value []byte // TODO: parse it.
+}
+
+type channel struct {
+	name      string
+	pixelType int32
+	pLinear   uint8
+	xSampling int32
+	ySampling int32
 }
 
 // parseAttribute parses an attribute of a header.
@@ -214,28 +283,15 @@ func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error)
 	typ := string(typeByte)
 	// TODO: Should I validate the length of attribute type?
 
-	sizeByte := make([]byte, 4)
-	_, err = r.Read(sizeByte)
+	sizeByte, err := read(r, 4)
 	if err != nil {
 		return nil, err
 	}
 	size := int(parse.Uint32(sizeByte))
 
-	valueByte := make([]byte, 0, size)
-	remain := size
-	for remain > 0 {
-		s := remain
-		if remain > bufio.MaxScanTokenSize {
-			s = bufio.MaxScanTokenSize
-		}
-		b := make([]byte, s)
-		n, err := r.Read(b)
-		if err != nil {
-			return nil, err
-		}
-		b = b[:n]
-		remain -= n
-		valueByte = append(valueByte, b...)
+	valueByte, err := read(r, size)
+	if err != nil {
+		return nil, err
 	}
 
 	attr := attribute{
@@ -269,8 +325,27 @@ func read(r *bufio.Reader, size int) ([]byte, error) {
 	return bs, nil
 }
 
-func fromScanLineFile() {}
-
-func fromSinglePartFile() {}
-
-func fromMultiPartFile() {}
+// mustRead should read _size_ bytes from *bufio.Reader.
+// If it can't by any reason, it will terminate the program.
+//
+// TODO: I think it is not fit to non-main package. Find good replacement of it.
+func mustRead(r *bufio.Reader, size int) []byte {
+	bs := make([]byte, 0, size)
+	remain := size
+	for remain > 0 {
+		s := remain
+		if remain > bufio.MaxScanTokenSize {
+			s = bufio.MaxScanTokenSize
+		}
+		b := make([]byte, s)
+		n, err := r.Read(b)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		b = b[:n]
+		remain -= n
+		bs = append(bs, b...)
+	}
+	return bs
+}
