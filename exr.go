@@ -243,14 +243,6 @@ type attribute struct {
 	value []byte // TODO: parse it.
 }
 
-type channel struct {
-	name      string
-	pixelType int32
-	pLinear   uint8
-	xSampling int32
-	ySampling int32
-}
-
 // parseAttribute parses an attribute of a header.
 //
 // It returns one of following forms.
