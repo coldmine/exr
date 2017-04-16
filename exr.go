@@ -10,6 +10,21 @@ import (
 	"os"
 )
 
+// A FormatError reports that the input is not a valid EXR image.
+type FormatError string
+
+func (e FormatError) Error() string {
+	return "exr: invalid format: " + string(e)
+}
+
+// An UnsupportedError reports that the input uses a valid but
+// unimplemented feature.
+type UnsupportedError string
+
+func (e UnsupportedError) Error() string {
+	return "exr: unsupported feature: " + string(e)
+}
+
 var MagicNumber = 20000630
 
 type compressionType int
