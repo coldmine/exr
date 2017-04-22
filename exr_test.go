@@ -15,7 +15,7 @@ func TestDecode(t *testing.T) {
 	for _, c := range cases {
 		_, err := Decode(c)
 		if err != nil {
-			t.Fatal("Could not decode exr image: %v: %v", c, err)
+			t.Fatalf("Could not decode exr image: %v: %v", c, err)
 		}
 	}
 }
