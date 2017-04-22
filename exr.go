@@ -50,6 +50,26 @@ var numLinesPerBlock = map[compressionType]int{
 	B44ACompression:  32,
 }
 
+type Config struct {
+	// version is version of an exr image.
+	version int
+
+	// tiled indicates the image is tiled or scanline image.
+	// This value is valid only if the image is single part.
+	// (multiPart == false)
+	tiled bool
+
+	// longName indicates the image could have long(maximum: 255 bytes) attribute or channel names.
+	// When it is false, image could have only short(maximum: 31 bytes) names.
+	longName bool
+
+	// deep indicates the image is deep image or plane image.
+	deep bool
+
+	// multiPart indicates the image is consists of multi parts or a single part.
+	multiPart bool
+}
+
 func Decode(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -70,65 +90,36 @@ func Decode(path string) (image.Image, error) {
 		return nil, FormatError(fmt.Sprintf("wrong magic number"))
 	}
 
-	// Version field: 4 bytes
+	// version field: 4 bytes
 	// first byte: version number
-	// 2-4  bytes: set of boolean flags
-	versionByte, err := read(r, 4)
+	// next 3 bytes: set of boolean flags
+	versionBytes, err := read(r, 4)
 	if err != nil {
 		return nil, err
 	}
-	version := int(versionByte[0])
-	fmt.Println(version)
+	versionField := int(parse.Uint32(versionBytes))
 
-	// Parse image type
-	var singlePartScanLine bool
-	var singlePartTiled bool
-	var singlePartDeep bool
-	var multiPart bool
-	var multiPartDeep bool
-	versionInt := int(parse.Uint32(versionByte))
-	if versionInt&0x200 != 0 {
-		singlePartTiled = true
+	cfg := Config{
+		version:   int(versionBytes[0]),
+		tiled:     versionField&0x200 != 0,
+		longName:  versionField&0x400 != 0,
+		deep:      versionField&0x800 != 0,
+		multiPart: versionField&0x1000 != 0,
 	}
-	if !singlePartTiled {
-		deep := false
-		if versionInt&0x800 != 0 {
-			deep = true
+	if cfg.tiled {
+		if cfg.deep {
+			return nil, FormatError("single tile bit is on, non-image bit should be off")
 		}
-		multi := false
-		if versionInt&0x1000 != 0 {
-			multi = true
+		if cfg.multiPart {
+			return nil, FormatError("single tile bit is on, multi-part bit should be off")
 		}
-		if multi && !deep {
-			multiPart = true
-		} else if multi && deep {
-			multiPartDeep = true
-		} else if !multi && deep {
-			singlePartDeep = true
-		} else {
-			singlePartScanLine = true
-		}
-	}
-	if singlePartScanLine {
-		fmt.Println("It is single-part scanline image.")
-	} else if singlePartTiled {
-		fmt.Println("It is single-part tiled image.")
-	} else if singlePartDeep {
-		fmt.Println("It is single-part deep image.")
-	} else if multiPart {
-		fmt.Println("It is multi-part image.")
-	} else if multiPartDeep {
-		fmt.Println("It is multi-part deep image.")
 	}
 
-	// Check image could have long attribute name
-	var longAttrName bool
-	if versionInt&0x400 != 0 {
-		longAttrName = true
-	}
-	if longAttrName {
-		fmt.Println("It could have long attribute names")
-	}
+	fmt.Println("version: ", cfg.version)
+	fmt.Println("tiled: ", cfg.tiled)
+	fmt.Println("multi part: ", cfg.multiPart)
+	fmt.Println("deep: ", cfg.deep)
+	fmt.Println("long name: ", cfg.longName)
 
 	// Parse attributes of a header.
 	parts := make([]map[string]attribute, 0)
@@ -152,7 +143,7 @@ func Decode(path string) (image.Image, error) {
 		}
 		parts = append(parts, header)
 
-		if !multiPart && !multiPartDeep {
+		if !cfg.multiPart {
 			break
 		}
 		bs, err := r.Peek(1)
