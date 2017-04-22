@@ -224,14 +224,18 @@ func Decode(path string) (image.Image, error) {
 	fmt.Println(blockLines)
 
 	// Parse offsets.
-	offsets := make([]uint64, 0)
-	for i := yMin; i <= yMax; i += blockLines {
+	nLines := yMax - yMin + 1
+	nChunks := nLines / blockLines
+	if nLines%blockLines != 0 {
+		nChunks++
+	}
+	offsets := make([]uint64, nChunks)
+	for i := range offsets {
 		offsetByte, err := read(r, 8)
 		if err != nil {
 			return nil, err
 		}
-		offset := uint64(parse.Uint64(offsetByte))
-		offsets = append(offsets, offset)
+		offsets[i] = uint64(parse.Uint64(offsetByte))
 	}
 	fmt.Println(offsets)
 
