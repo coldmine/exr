@@ -124,7 +124,7 @@ func Decode(path string) (image.Image, error) {
 	// Parse attributes of a header.
 	parts := make([]map[string]attribute, 0)
 
-	for i := 0; ; i++ {
+	for {
 		fmt.Println("== a part ==")
 
 		header := make(map[string]attribute)
