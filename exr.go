@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -64,12 +63,11 @@ func Decode(path string) (image.Image, error) {
 	// Magic number: 4 bytes
 	magicByte, err := read(r, 4)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return nil, err
 	}
 	magic := int(parse.Uint32(magicByte))
 	if magic != MagicNumber {
-		return nil, fmt.Errorf("wrong magic number: %v, need %v", magic, MagicNumber)
+		return nil, FormatError(fmt.Sprintf("wrong magic number"))
 	}
 
 	// Version field: 4 bytes
@@ -77,8 +75,7 @@ func Decode(path string) (image.Image, error) {
 	// 2-4  bytes: set of boolean flags
 	versionByte, err := read(r, 4)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return nil, err
 	}
 	version := int(versionByte[0])
 	fmt.Println(version)
@@ -143,8 +140,7 @@ func Decode(path string) (image.Image, error) {
 		for {
 			pAttr, err := parseAttribute(r, parse)
 			if err != nil {
-				fmt.Println("Could not read header: ", err)
-				os.Exit(1)
+				return nil, err
 			}
 			if pAttr == nil {
 				// Single header ends.
@@ -161,8 +157,7 @@ func Decode(path string) (image.Image, error) {
 		}
 		bs, err := r.Peek(1)
 		if err != nil {
-			fmt.Println("Could not peek:", err)
-			os.Exit(1)
+			return nil, err
 		}
 		if bs[0] == 0x00 {
 			break
@@ -175,24 +170,26 @@ func Decode(path string) (image.Image, error) {
 	// Parse channels.
 	channels, ok := header["channels"]
 	if !ok {
-		fmt.Println("Header does not have 'channels' attribute")
-		os.Exit(1)
+		return nil, FormatError("header does not have 'channels' attribute")
 	}
 	chlist := make([]channel, 0)
-	fmt.Println(channels.value)
 	remain := bufio.NewReader(bytes.NewBuffer(channels.value))
 	for {
 		nameByte, err := remain.ReadBytes(0x00)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return nil, err
 		}
 		name := string(nameByte[:len(nameByte)-1])
-		pixelType := int32(parse.Uint32(mustRead(remain, 4)))
-		pLinear := uint8(mustRead(remain, 1)[0])
-		_ = mustRead(remain, 3)
-		xSampling := int32(parse.Uint32(mustRead(remain, 4)))
-		ySampling := int32(parse.Uint32(mustRead(remain, 4)))
+
+		channelBytes, err := read(remain, 16)
+		if err != nil {
+			return nil, err
+		}
+		pixelType := int32(parse.Uint32(channelBytes[:4]))
+		pLinear := uint8(channelBytes[4])
+		// channelBytes[5:8] are place holders.
+		xSampling := int32(parse.Uint32(channelBytes[8:12]))
+		ySampling := int32(parse.Uint32(channelBytes[12:]))
 		ch := channel{
 			name:      name,
 			pixelType: pixelType,
@@ -203,10 +200,12 @@ func Decode(path string) (image.Image, error) {
 		fmt.Println(ch)
 		chlist = append(chlist, ch)
 		if remain.Buffered() == 1 {
-			nullByte := mustRead(remain, 1)
-			if int8(nullByte[0]) != 0 {
-				fmt.Printf("channels are must seperated by null byte: got %v\n", nullByte)
-				os.Exit(1)
+			nullByte, err := remain.Peek(1)
+			if err != nil {
+				return nil, err
+			}
+			if nullByte[0] != 0x00 {
+				return nil, FormatError("channels are must seperated by a null byte")
 			}
 			break
 		}
@@ -215,8 +214,7 @@ func Decode(path string) (image.Image, error) {
 	// Check image (x, y) size.
 	dataWindow, ok := header["dataWindow"]
 	if !ok {
-		fmt.Println("Header does not have 'dataWindow' attribute")
-		os.Exit(1)
+		return nil, FormatError("header does not have 'dataWindow' attribute")
 	}
 	var xMin, yMin, xMax, yMax int
 	xMin = int(parse.Uint32(dataWindow.value[0:4]))
@@ -228,8 +226,7 @@ func Decode(path string) (image.Image, error) {
 	// Check compression method.
 	compression, ok := header["compression"]
 	if !ok {
-		fmt.Println("Header does not have 'compression' attribute")
-		os.Exit(1)
+		return nil, FormatError("header does not have 'compression' attribute")
 	}
 	compressionMethod := compressionType(uint8(compression.value[0]))
 	blockLines := numLinesPerBlock[compressionMethod]
@@ -240,8 +237,7 @@ func Decode(path string) (image.Image, error) {
 	for i := yMin; i <= yMax; i += blockLines {
 		offsetByte, err := read(r, 8)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return nil, err
 		}
 		offset := uint64(parse.Uint64(offsetByte))
 		offsets = append(offsets, offset)
@@ -278,7 +274,7 @@ func parseAttribute(r *bufio.Reader, parse binary.ByteOrder) (*attribute, error)
 	}
 	// TODO: Properly validate length of attribute name.
 	if len(nameByte) > 255 {
-		return nil, errors.New("attribute name too long.")
+		return nil, FormatError("attribute name too long.")
 	}
 	name := string(nameByte)
 
@@ -330,29 +326,4 @@ func read(r *bufio.Reader, size int) ([]byte, error) {
 		bs = append(bs, b...)
 	}
 	return bs, nil
-}
-
-// mustRead should read _size_ bytes from *bufio.Reader.
-// If it can't by any reason, it will terminate the program.
-//
-// TODO: I think it is not fit to non-main package. Find good replacement of it.
-func mustRead(r *bufio.Reader, size int) []byte {
-	bs := make([]byte, 0, size)
-	remain := size
-	for remain > 0 {
-		s := remain
-		if remain > bufio.MaxScanTokenSize {
-			s = bufio.MaxScanTokenSize
-		}
-		b := make([]byte, s)
-		n, err := r.Read(b)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		b = b[:n]
-		remain -= n
-		bs = append(bs, b...)
-	}
-	return bs
 }
