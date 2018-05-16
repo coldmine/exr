@@ -50,7 +50,7 @@ var numLinesPerBlock = map[compressionType]int{
 	B44ACompression:  32,
 }
 
-type Config struct {
+type VersionField struct {
 	// version is version of an exr image.
 	version int
 
@@ -97,29 +97,29 @@ func Decode(path string) (image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	versionField := int(parse.Uint32(versionBytes))
+	versionNum := int(parse.Uint32(versionBytes))
 
-	cfg := Config{
+	vf := VersionField{
 		version:   int(versionBytes[0]),
-		tiled:     versionField&0x200 != 0,
-		longName:  versionField&0x400 != 0,
-		deep:      versionField&0x800 != 0,
-		multiPart: versionField&0x1000 != 0,
+		tiled:     versionNum&0x200 != 0,
+		longName:  versionNum&0x400 != 0,
+		deep:      versionNum&0x800 != 0,
+		multiPart: versionNum&0x1000 != 0,
 	}
-	if cfg.tiled {
-		if cfg.deep {
+	if vf.tiled {
+		if vf.deep {
 			return nil, FormatError("single tile bit is on, non-image bit should be off")
 		}
-		if cfg.multiPart {
+		if vf.multiPart {
 			return nil, FormatError("single tile bit is on, multi-part bit should be off")
 		}
 	}
 
-	fmt.Println("version: ", cfg.version)
-	fmt.Println("tiled: ", cfg.tiled)
-	fmt.Println("multi part: ", cfg.multiPart)
-	fmt.Println("deep: ", cfg.deep)
-	fmt.Println("long name: ", cfg.longName)
+	fmt.Println("version: ", vf.version)
+	fmt.Println("tiled: ", vf.tiled)
+	fmt.Println("multi part: ", vf.multiPart)
+	fmt.Println("deep: ", vf.deep)
+	fmt.Println("long name: ", vf.longName)
 
 	// Parse attributes of a header.
 	parts := make([]map[string]attribute, 0)
@@ -143,7 +143,7 @@ func Decode(path string) (image.Image, error) {
 		}
 		parts = append(parts, header)
 
-		if !cfg.multiPart {
+		if !vf.multiPart {
 			break
 		}
 		bs, err := r.Peek(1)
