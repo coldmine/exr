@@ -39,6 +39,29 @@ const (
 	B44ACompression
 )
 
+func (t compressionType) String() string {
+	switch t {
+	case NoCompression:
+		return "NoCompression"
+	case RLECompression:
+		return "RLECompression"
+	case ZIPSCompression:
+		return "ZIPSCompression"
+	case ZIPCompression:
+		return "ZIPCompression"
+	case PIZCompression:
+		return "PIZCompression"
+	case PXR24Compression:
+		return "PXR24Compression"
+	case B44Compression:
+		return "B44Compression"
+	case B44ACompression:
+		return "B44ACompression"
+	default:
+		return "UnknownCompression"
+	}
+}
+
 var numLinesPerBlock = map[compressionType]int{
 	NoCompression:    1,
 	RLECompression:   1,
@@ -221,6 +244,7 @@ func Decode(path string) (image.Image, error) {
 	}
 	compressionMethod := compressionType(uint8(compression.value[0]))
 	blockLines := numLinesPerBlock[compressionMethod]
+	fmt.Printf("compression method: %v\n", compressionMethod)
 	fmt.Println(blockLines)
 
 	// Parse offsets.
