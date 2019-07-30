@@ -235,7 +235,7 @@ func Decode(path string) (image.Image, error) {
 	yMin = int(parse.Uint32(dataWindow.value[4:8]))
 	xMax = int(parse.Uint32(dataWindow.value[8:12]))
 	yMax = int(parse.Uint32(dataWindow.value[12:16]))
-	fmt.Println(xMin, yMin, xMax, yMax)
+	fmt.Printf("data window: [%d, %d], [%d, %d]\n", xMin, yMin, xMax, yMax)
 
 	// Check compression method.
 	compression, ok := header["compression"]
