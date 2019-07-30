@@ -245,7 +245,6 @@ func Decode(path string) (image.Image, error) {
 	compressionMethod := compressionType(uint8(compression.value[0]))
 	blockLines := numLinesPerBlock[compressionMethod]
 	fmt.Printf("compression method: %v\n", compressionMethod)
-	fmt.Println(blockLines)
 
 	// Parse offsets.
 	nLines := yMax - yMin + 1
@@ -253,6 +252,7 @@ func Decode(path string) (image.Image, error) {
 	if nLines%blockLines != 0 {
 		nChunks++
 	}
+	fmt.Printf("number of chunks: %d = %d/%d\n", nChunks, nLines, blockLines)
 	offsets := make([]uint64, nChunks)
 	for i := range offsets {
 		offsetByte, err := read(r, 8)
