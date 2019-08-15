@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"log"
+	"math"
 	"os"
 )
 
@@ -150,14 +151,16 @@ func Decode(path string) (image.Image, error) {
 
 	for _, attr := range header {
 		switch attr.typ {
+		case "float":
+			fmt.Println(attr.name, math.Float32frombits(parse.Uint32(attr.value)))
 		case "box2i":
 			fmt.Println(attr.name, box2iFromBytes(attr.value))
 		case "box2f":
 			fmt.Println(attr.name, box2fFromBytes(attr.value))
 		case "chlist":
 			fmt.Println(attr.name, chlistFromBytes(attr.value))
-		case "chromatics":
-			fmt.Println(attr.name, chromaticsFromBytes(attr.value))
+		case "chromaticities":
+			fmt.Println(attr.name, chromaticitiesFromBytes(attr.value))
 		case "compression":
 			fmt.Println(attr.name, compressionFromBytes(attr.value))
 		case "envmap":
@@ -175,6 +178,8 @@ func Decode(path string) (image.Image, error) {
 			// fmt.Println(attr.name, previewFromBytes(attr.value))
 		case "rational":
 			fmt.Println(attr.name, rationalFromBytes(attr.value))
+		case "string":
+			fmt.Println(attr.name, string(attr.value))
 		case "tiledesc":
 			fmt.Println(attr.name, tiledescFromBytes(attr.value))
 		case "timecode":
@@ -187,6 +192,8 @@ func Decode(path string) (image.Image, error) {
 			fmt.Println(attr.name, v3iFromBytes(attr.value))
 		case "v3f":
 			fmt.Println(attr.name, v3fFromBytes(attr.value))
+		default:
+			fmt.Printf("unknown type of attribute %q: %v\n", attr.name, attr.typ)
 		}
 	}
 

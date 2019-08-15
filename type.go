@@ -101,7 +101,7 @@ func chlistFromBytes(b []byte) chlist {
 	return chans
 }
 
-type chromatics struct {
+type chromaticities struct {
 	redX   float32
 	redY   float32
 	greenX float32
@@ -112,11 +112,11 @@ type chromatics struct {
 	whiteY float32
 }
 
-func chromaticsFromBytes(b []byte) chromatics {
+func chromaticitiesFromBytes(b []byte) chromaticities {
 	if len(b) != 32 {
-		log.Fatal("chromaticsFromBytes: need bytes of length 32")
+		log.Fatal("chromaticitiesFromBytes: need bytes of length 32")
 	}
-	return chromatics{
+	return chromaticities{
 		redX:   float32(parse.Uint32(b[0:4])),
 		redY:   float32(parse.Uint32(b[4:8])),
 		greenX: float32(parse.Uint32(b[8:12])),
