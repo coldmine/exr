@@ -126,7 +126,6 @@ func Decode(path string) (image.Image, error) {
 				break
 			}
 			attr := *pAttr
-			fmt.Println(attr.name, attr.size)
 			header[attr.name] = attr
 		}
 		parts = append(parts, header)
@@ -148,6 +147,48 @@ func Decode(path string) (image.Image, error) {
 		log.Fatal("does not support multi-part image yet")
 	}
 	header := parts[0]
+
+	for _, attr := range header {
+		switch attr.typ {
+		case "box2i":
+			fmt.Println(attr.name, box2iFromBytes(attr.value))
+		case "box2f":
+			fmt.Println(attr.name, box2fFromBytes(attr.value))
+		case "chlist":
+			fmt.Println(attr.name, chlistFromBytes(attr.value))
+		case "chromatics":
+			fmt.Println(attr.name, chromaticsFromBytes(attr.value))
+		case "compression":
+			fmt.Println(attr.name, compressionFromBytes(attr.value))
+		case "envmap":
+			fmt.Println(attr.name, envmapFromBytes(attr.value))
+		case "keycode":
+			fmt.Println(attr.name, keycodeFromBytes(attr.value))
+		case "lineOrder":
+			fmt.Println(attr.name, lineOrderFromBytes(attr.value))
+		case "m33f":
+			fmt.Println(attr.name, m33fFromBytes(attr.value))
+		case "m44f":
+			fmt.Println(attr.name, m44fFromBytes(attr.value))
+		case "preview":
+			// long result
+			// fmt.Println(attr.name, previewFromBytes(attr.value))
+		case "rational":
+			fmt.Println(attr.name, rationalFromBytes(attr.value))
+		case "tiledesc":
+			fmt.Println(attr.name, tiledescFromBytes(attr.value))
+		case "timecode":
+			fmt.Println(attr.name, timecodeFromBytes(attr.value))
+		case "v2i":
+			fmt.Println(attr.name, v2iFromBytes(attr.value))
+		case "v2f":
+			fmt.Println(attr.name, v2fFromBytes(attr.value))
+		case "v3i":
+			fmt.Println(attr.name, v3iFromBytes(attr.value))
+		case "v3f":
+			fmt.Println(attr.name, v3fFromBytes(attr.value))
+		}
+	}
 
 	// Parse channels.
 	channels, ok := header["channels"]
