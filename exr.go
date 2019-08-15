@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image"
+	"log"
 	"os"
 )
 
@@ -26,51 +27,18 @@ func (e UnsupportedError) Error() string {
 
 var MagicNumber = 20000630
 
-type compressionType int
+// EXR file have little endian form.
+var parse = binary.LittleEndian
 
-const (
-	NoCompression = compressionType(iota)
-	RLECompression
-	ZIPSCompression
-	ZIPCompression
-	PIZCompression
-	PXR24Compression
-	B44Compression
-	B44ACompression
-)
-
-func (t compressionType) String() string {
-	switch t {
-	case NoCompression:
-		return "NoCompression"
-	case RLECompression:
-		return "RLECompression"
-	case ZIPSCompression:
-		return "ZIPSCompression"
-	case ZIPCompression:
-		return "ZIPCompression"
-	case PIZCompression:
-		return "PIZCompression"
-	case PXR24Compression:
-		return "PXR24Compression"
-	case B44Compression:
-		return "B44Compression"
-	case B44ACompression:
-		return "B44ACompression"
-	default:
-		return "UnknownCompression"
-	}
-}
-
-var numLinesPerBlock = map[compressionType]int{
-	NoCompression:    1,
-	RLECompression:   1,
-	ZIPSCompression:  1,
-	ZIPCompression:   16,
-	PIZCompression:   32,
-	PXR24Compression: 16,
-	B44Compression:   32,
-	B44ACompression:  32,
+var numLinesPerBlock = map[compression]int{
+	NO_COMPRESSION:    1,
+	RLE_COMPRESSION:   1,
+	ZIPS_COMPRESSION:  1,
+	ZIP_COMPRESSION:   16,
+	PIZ_COMPRESSION:   32,
+	PXR24_COMPRESSION: 16,
+	B44_COMPRESSION:   32,
+	B44A_COMPRESSION:  32,
 }
 
 type VersionField struct {
@@ -99,9 +67,6 @@ func Decode(path string) (image.Image, error) {
 		return nil, err
 	}
 	r := bufio.NewReader(f)
-
-	// EXR file have little endian form.
-	parse := binary.LittleEndian
 
 	// Magic number: 4 bytes
 	magicByte, err := read(r, 4)
@@ -179,6 +144,9 @@ func Decode(path string) (image.Image, error) {
 	}
 
 	// TODO: Parse multi-part image.
+	if vf.multiPart {
+		log.Fatal("does not support multi-part image yet")
+	}
 	header := parts[0]
 
 	// Parse channels.
@@ -238,13 +206,19 @@ func Decode(path string) (image.Image, error) {
 	fmt.Printf("data window: [%d, %d], [%d, %d]\n", xMin, yMin, xMax, yMax)
 
 	// Check compression method.
-	compression, ok := header["compression"]
+	comp, ok := header["compression"]
 	if !ok {
 		return nil, FormatError("header does not have 'compression' attribute")
 	}
-	compressionMethod := compressionType(uint8(compression.value[0]))
+	compressionMethod := compression(comp.value[0])
 	blockLines := numLinesPerBlock[compressionMethod]
 	fmt.Printf("compression method: %v\n", compressionMethod)
+
+	lineOrder, ok := header["lineOrder"]
+	if !ok {
+		return nil, FormatError("header does not have 'lineOrder' attribute")
+	}
+	fmt.Printf("line order: %v\n", lineOrder)
 
 	// Parse offsets.
 	nLines := yMax - yMin + 1
