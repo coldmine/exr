@@ -2,7 +2,6 @@ package exr
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"image"
@@ -31,7 +30,7 @@ var MagicNumber = 20000630
 // EXR file have little endian form.
 var parse = binary.LittleEndian
 
-var numLinesPerBlock = map[compression]int{
+var numLinesPerBlock = map[compression]int32{
 	NO_COMPRESSION:    1,
 	RLE_COMPRESSION:   1,
 	ZIPS_COMPRESSION:  1,
@@ -198,78 +197,39 @@ func Decode(path string) (image.Image, error) {
 	}
 
 	// Parse channels.
-	channels, ok := header["channels"]
+	channelsAttr, ok := header["channels"]
 	if !ok {
 		return nil, FormatError("header does not have 'channels' attribute")
 	}
-	chlist := make([]channel, 0)
-	remain := bufio.NewReader(bytes.NewBuffer(channels.value))
-	for {
-		nameByte, err := remain.ReadBytes(0x00)
-		if err != nil {
-			return nil, err
-		}
-		name := string(nameByte[:len(nameByte)-1])
-
-		channelBytes, err := read(remain, 16)
-		if err != nil {
-			return nil, err
-		}
-		pixelType := int32(parse.Uint32(channelBytes[:4]))
-		pLinear := uint8(channelBytes[4])
-		// channelBytes[5:8] are place holders.
-		xSampling := int32(parse.Uint32(channelBytes[8:12]))
-		ySampling := int32(parse.Uint32(channelBytes[12:]))
-		ch := channel{
-			name:      name,
-			pixelType: pixelType,
-			pLinear:   pLinear,
-			xSampling: xSampling,
-			ySampling: ySampling,
-		}
-		fmt.Println(ch)
-		chlist = append(chlist, ch)
-		if remain.Buffered() == 1 {
-			nullByte, err := remain.Peek(1)
-			if err != nil {
-				return nil, err
-			}
-			if nullByte[0] != 0x00 {
-				return nil, FormatError("channels are must seperated by a null byte")
-			}
-			break
-		}
-	}
+	channels := chlistFromBytes(channelsAttr.value)
+	fmt.Println("channels: ", channels)
 
 	// Check image (x, y) size.
-	dataWindow, ok := header["dataWindow"]
+	dataWindowAttr, ok := header["dataWindow"]
 	if !ok {
 		return nil, FormatError("header does not have 'dataWindow' attribute")
 	}
-	var xMin, yMin, xMax, yMax int
-	xMin = int(parse.Uint32(dataWindow.value[0:4]))
-	yMin = int(parse.Uint32(dataWindow.value[4:8]))
-	xMax = int(parse.Uint32(dataWindow.value[8:12]))
-	yMax = int(parse.Uint32(dataWindow.value[12:16]))
-	fmt.Printf("data window: [%d, %d], [%d, %d]\n", xMin, yMin, xMax, yMax)
+	dataWindow := box2iFromBytes(dataWindowAttr.value)
+	fmt.Println("data window: ", dataWindow)
 
 	// Check compression method.
-	comp, ok := header["compression"]
+	compAttr, ok := header["compression"]
 	if !ok {
 		return nil, FormatError("header does not have 'compression' attribute")
 	}
-	compressionMethod := compression(comp.value[0])
-	blockLines := numLinesPerBlock[compressionMethod]
-	fmt.Printf("compression method: %v\n", compressionMethod)
+	comp := compressionFromBytes(compAttr.value)
+	blockLines := numLinesPerBlock[comp]
+	fmt.Printf("compression method: %v - %v lines per block\n", comp, blockLines)
 
-	lineOrder, ok := header["lineOrder"]
+	lineOrderAttr, ok := header["lineOrder"]
 	if !ok {
 		return nil, FormatError("header does not have 'lineOrder' attribute")
 	}
+	lineOrder := lineOrderFromBytes(lineOrderAttr.value)
 	fmt.Printf("line order: %v\n", lineOrder)
 
 	// Parse offsets.
-	nLines := yMax - yMin + 1
+	nLines := dataWindow.yMax - dataWindow.yMin + 1
 	nChunks := nLines / blockLines
 	if nLines%blockLines != 0 {
 		nChunks++
