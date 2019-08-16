@@ -245,6 +245,28 @@ func Decode(path string) (image.Image, error) {
 	}
 	fmt.Println(offsets)
 
+	for _, o := range offsets {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		r := bufio.NewReader(f)
+		_, err = r.Discard(int(o))
+		if err != nil {
+			log.Fatal("discard failed")
+		}
+		n, err := read(r, 4)
+		if err != nil {
+			log.Fatal("read offset failed")
+		}
+		y := parse.Uint32(n)
+		n, err = read(r, 4)
+		if err != nil {
+			log.Fatal("read offset failed")
+		}
+		size := parse.Uint32(n)
+		fmt.Println(y, size)
+	}
 	return nil, nil
 }
 
