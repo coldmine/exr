@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"log"
+	"math"
 )
 
 // These types are defined by IlmImf.
@@ -43,10 +44,10 @@ func box2fFromBytes(b []byte) box2f {
 		log.Fatal("box2fFromBytes: need bytes of length 16")
 	}
 	return box2f{
-		xMin: float32(parse.Uint32(b[0:4])),
-		yMin: float32(parse.Uint32(b[4:8])),
-		xMax: float32(parse.Uint32(b[8:12])),
-		yMax: float32(parse.Uint32(b[12:16])),
+		xMin: math.Float32frombits(parse.Uint32(b[0:4])),
+		yMin: math.Float32frombits(parse.Uint32(b[4:8])),
+		xMax: math.Float32frombits(parse.Uint32(b[8:12])),
+		yMax: math.Float32frombits(parse.Uint32(b[12:16])),
 	}
 }
 
@@ -117,14 +118,14 @@ func chromaticitiesFromBytes(b []byte) chromaticities {
 		log.Fatal("chromaticitiesFromBytes: need bytes of length 32")
 	}
 	return chromaticities{
-		redX:   float32(parse.Uint32(b[0:4])),
-		redY:   float32(parse.Uint32(b[4:8])),
-		greenX: float32(parse.Uint32(b[8:12])),
-		greenY: float32(parse.Uint32(b[12:16])),
-		blueX:  float32(parse.Uint32(b[16:20])),
-		blueY:  float32(parse.Uint32(b[20:24])),
-		whiteX: float32(parse.Uint32(b[24:28])),
-		whiteY: float32(parse.Uint32(b[28:32])),
+		redX:   math.Float32frombits(parse.Uint32(b[0:4])),
+		redY:   math.Float32frombits(parse.Uint32(b[4:8])),
+		greenX: math.Float32frombits(parse.Uint32(b[8:12])),
+		greenY: math.Float32frombits(parse.Uint32(b[12:16])),
+		blueX:  math.Float32frombits(parse.Uint32(b[16:20])),
+		blueY:  math.Float32frombits(parse.Uint32(b[20:24])),
+		whiteX: math.Float32frombits(parse.Uint32(b[24:28])),
+		whiteY: math.Float32frombits(parse.Uint32(b[28:32])),
 	}
 }
 
@@ -240,15 +241,15 @@ func m33fFromBytes(b []byte) m33f {
 		log.Fatal("m33fFromBytes: need bytes of length 36")
 	}
 	return [9]float32{
-		float32(parse.Uint32(b[:4])),
-		float32(parse.Uint32(b[4:8])),
-		float32(parse.Uint32(b[8:12])),
-		float32(parse.Uint32(b[12:16])),
-		float32(parse.Uint32(b[16:20])),
-		float32(parse.Uint32(b[20:24])),
-		float32(parse.Uint32(b[24:28])),
-		float32(parse.Uint32(b[28:32])),
-		float32(parse.Uint32(b[32:36])),
+		math.Float32frombits(parse.Uint32(b[:4])),
+		math.Float32frombits(parse.Uint32(b[4:8])),
+		math.Float32frombits(parse.Uint32(b[8:12])),
+		math.Float32frombits(parse.Uint32(b[12:16])),
+		math.Float32frombits(parse.Uint32(b[16:20])),
+		math.Float32frombits(parse.Uint32(b[20:24])),
+		math.Float32frombits(parse.Uint32(b[24:28])),
+		math.Float32frombits(parse.Uint32(b[28:32])),
+		math.Float32frombits(parse.Uint32(b[32:36])),
 	}
 }
 
@@ -259,22 +260,22 @@ func m44fFromBytes(b []byte) m44f {
 		log.Fatal("m44fFromBytes: need bytes of length 64")
 	}
 	return [16]float32{
-		float32(parse.Uint32(b[:4])),
-		float32(parse.Uint32(b[4:8])),
-		float32(parse.Uint32(b[8:12])),
-		float32(parse.Uint32(b[12:16])),
-		float32(parse.Uint32(b[16:20])),
-		float32(parse.Uint32(b[20:24])),
-		float32(parse.Uint32(b[24:28])),
-		float32(parse.Uint32(b[28:32])),
-		float32(parse.Uint32(b[32:36])),
-		float32(parse.Uint32(b[36:40])),
-		float32(parse.Uint32(b[40:44])),
-		float32(parse.Uint32(b[44:48])),
-		float32(parse.Uint32(b[48:52])),
-		float32(parse.Uint32(b[52:56])),
-		float32(parse.Uint32(b[56:60])),
-		float32(parse.Uint32(b[60:64])),
+		math.Float32frombits(parse.Uint32(b[:4])),
+		math.Float32frombits(parse.Uint32(b[4:8])),
+		math.Float32frombits(parse.Uint32(b[8:12])),
+		math.Float32frombits(parse.Uint32(b[12:16])),
+		math.Float32frombits(parse.Uint32(b[16:20])),
+		math.Float32frombits(parse.Uint32(b[20:24])),
+		math.Float32frombits(parse.Uint32(b[24:28])),
+		math.Float32frombits(parse.Uint32(b[28:32])),
+		math.Float32frombits(parse.Uint32(b[32:36])),
+		math.Float32frombits(parse.Uint32(b[36:40])),
+		math.Float32frombits(parse.Uint32(b[40:44])),
+		math.Float32frombits(parse.Uint32(b[44:48])),
+		math.Float32frombits(parse.Uint32(b[48:52])),
+		math.Float32frombits(parse.Uint32(b[52:56])),
+		math.Float32frombits(parse.Uint32(b[56:60])),
+		math.Float32frombits(parse.Uint32(b[60:64])),
 	}
 }
 
@@ -358,8 +359,8 @@ func v2fFromBytes(b []byte) v2f {
 		log.Fatal("v2fFromBytes: need bytes of length 8")
 	}
 	return v2f{
-		float32(parse.Uint32(b[:4])),
-		float32(parse.Uint32(b[4:8])),
+		math.Float32frombits(parse.Uint32(b[:4])),
+		math.Float32frombits(parse.Uint32(b[4:8])),
 	}
 }
 
@@ -383,8 +384,8 @@ func v3fFromBytes(b []byte) v3f {
 		log.Fatal("v3fFromBytes: need bytes of length 12")
 	}
 	return v3f{
-		float32(parse.Uint32(b[:4])),
-		float32(parse.Uint32(b[4:8])),
-		float32(parse.Uint32(b[8:12])),
+		math.Float32frombits(parse.Uint32(b[:4])),
+		math.Float32frombits(parse.Uint32(b[4:8])),
+		math.Float32frombits(parse.Uint32(b[8:12])),
 	}
 }
