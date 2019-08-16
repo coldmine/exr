@@ -213,13 +213,13 @@ func Decode(path string) (image.Image, error) {
 	fmt.Println("data window: ", dataWindow)
 
 	// Check compression method.
-	compAttr, ok := header["compression"]
+	compressionAttr, ok := header["compression"]
 	if !ok {
 		return nil, FormatError("header does not have 'compression' attribute")
 	}
-	comp := compressionFromBytes(compAttr.value)
-	blockLines := numLinesPerBlock[comp]
-	fmt.Printf("compression method: %v - %v lines per block\n", comp, blockLines)
+	compressionMethod := compressionFromBytes(compressionAttr.value)
+	blockLines := numLinesPerBlock[compressionMethod]
+	fmt.Printf("compression method: %v - %v lines per block\n", compressionMethod, blockLines)
 
 	lineOrderAttr, ok := header["lineOrder"]
 	if !ok {
@@ -264,10 +264,27 @@ func Decode(path string) (image.Image, error) {
 		if err != nil {
 			log.Fatal("read offset failed")
 		}
-		size := parse.Uint32(n)
-		fmt.Println(y, size)
+		size := int(parse.Uint32(n))
+		block, err := read(r, size)
+		if err != nil {
+			log.Fatal("read block data failed")
+		}
+		channels := decompress(block, compressionMethod)
+		fmt.Println(y, size, channels)
 	}
 	return nil, nil
+}
+
+func decompress(b []byte, method compression) []image.Image {
+	if method == PIZ_COMPRESSION {
+		return decompressPIZ(b)
+	}
+	log.Fatalf("decompress of %d not supported yet", method)
+	return nil
+}
+
+func decompressPIZ(b []byte) []image.Image {
+	return nil
 }
 
 type attribute struct {
