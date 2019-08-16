@@ -51,9 +51,30 @@ func box2fFromBytes(b []byte) box2f {
 	}
 }
 
+type pixelType int32
+
+const (
+	UINT = pixelType(iota)
+	HALF
+	FLOAT
+)
+
+func (p pixelType) String() string {
+	switch p {
+	case UINT:
+		return "UINT"
+	case HALF:
+		return "HALF"
+	case FLOAT:
+		return "FLOAT"
+	default:
+		return "UNKNOWN_PIXEL_TYPE"
+	}
+}
+
 type channel struct {
 	name      string
-	pixelType int32
+	pixelType pixelType
 	pLinear   uint8
 	xSampling int32
 	ySampling int32
@@ -75,7 +96,7 @@ func chlistFromBytes(b []byte) chlist {
 		if err != nil {
 			log.Fatal(err)
 		}
-		pixelType := int32(parse.Uint32(channelBytes[:4]))
+		pixelType := pixelType(parse.Uint32(channelBytes[:4]))
 		pLinear := uint8(channelBytes[4])
 		// channelBytes[5:8] are place holders.
 		xSampling := int32(parse.Uint32(channelBytes[8:12]))
