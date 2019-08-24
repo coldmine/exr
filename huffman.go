@@ -5,15 +5,15 @@ const (
 	HUF_ENCSIZE = (1 << HUF_ENCBITS) + 1
 )
 
-// A huffman code and it's length packed in 64 bit.
+// A huffman code and it's length packed in 64 bits.
 // So, I will call this a pack.
 
-// huffmanCode gets the code from a pack. (first 58 bit)
+// huffmanCode gets the code from a pack. (first 58 bits)
 func huffmanCode(pack int64) int64 {
 	return pack >> 6
 }
 
-// huffmanCodeLength gets the code's length from a pack. (last 6 bit)
+// huffmanCodeLength gets the code's length from a pack. (last 6 bits)
 func huffmanCodeLength(pack int64) int64 {
 	return pack & 0b111111
 }
@@ -23,7 +23,7 @@ func huffmanCodeLength(pack int64) int64 {
 //
 // see `Code Construction` part of http://www.compressconsult.com/huffman/
 //
-// packs should only having the length parts (lower 6 bit) when given.
+// packs should only having the length parts (lower 6 bits) when given.
 // It will assign their codes using the lengths.
 func huffmanBuildCanonicalCodes(packs []int64) {
 	// length of packs shold be HUF_ENCSIZE
