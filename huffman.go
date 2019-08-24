@@ -1,4 +1,4 @@
-package main
+package exr
 
 // huffman code value is stored in first 58bit,
 // and it's length store in last 6bit. (total 64bit)
