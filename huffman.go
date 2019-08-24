@@ -1,14 +1,14 @@
 package exr
 
-// huffman code value is stored in first 58bit,
-// and it's length store in last 6bit. (total 64bit)
+// A huffman code and it's length packed in 64 bit.
+// So, I will call this a pack.
 
-// huffmanCodeValue gets the code's value part.
-func huffmanCodeValue(code int64) int64 {
-	return code >> 6
+// huffmanCode gets the code from a pack. (first 58 bit)
+func huffmanCode(pack int64) int64 {
+	return pack >> 6
 }
 
-// huffmanCodeLength gets the code's length part.
-func huffmanCodeLength(code int64) int64 {
-	return code & 0b111111
+// huffmanCodeLength gets the code's length from a pack. (last 6 bit)
+func huffmanCodeLength(pack int64) int64 {
+	return pack & 0b111111
 }
