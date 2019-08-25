@@ -52,3 +52,42 @@ func huffmanBuildCanonicalCodes(packs []int64) {
 		}
 	}
 }
+
+// huffmanLengthPacksFromCodes returns packs (that only contains length part) from the codes.
+func huffmanLengthPacksFromCodes(codes []int64, iMin, iMax int) []int64 {
+	packs := make([]int64, 0)
+	for i := iMin; i < iMax; i++ {
+		l := huffmanCodeLength(codes[i])
+		if l != 0 {
+			packs = append(packs, l)
+			continue
+		}
+		// zero
+		n := 1
+		// continuous zeros will be compressed
+		// n  | length
+		// ---|--------------------
+		// 1  | 0
+		// 2  | 59
+		// 3  | 60
+		// 4  | 61
+		// 5  | 62
+		// 6+ | 63, n-6 (2 packs)
+		for i < iMax && n < (255+6) {
+			if huffmanCodeLength(codes[i]) != 0 {
+				break
+			}
+			i++
+			n++
+		}
+		if n == 1 {
+			packs = append(packs, 0)
+		} else if n <= 5 {
+			packs = append(packs, int64(n+57))
+		} else {
+			packs = append(packs, 63)
+			packs = append(packs, int64(n-6))
+		}
+	}
+	return packs
+}
