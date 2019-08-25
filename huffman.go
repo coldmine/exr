@@ -122,15 +122,15 @@ func huffmanBuildCodes(freq []int64) ([]int64, int, int) {
 		}
 	}
 
-	// caculate the data min and max before adding a pseudo symbol.
-	dMin := data[0]
-	dMax := data[len(data)-1]
-
 	// add a pseudo symbol for run-length encoding.
 	// TODO: what does this do?
-	dMax++
-	freq[dMax] = 1
-	data = append(data, dMax)
+	symbol := data[len(data)-1] + 1
+	freq[symbol] = 1
+	data = append(data, symbol)
+
+	// get min and max data before they are mixed by heap.
+	dMin := data[0]
+	dMax := symbol
 
 	// create a index heap that can access to the frequency of data.
 	freqHeap := newIndexHeap(data, func(d int) int64 {
