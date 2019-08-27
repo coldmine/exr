@@ -229,7 +229,7 @@ type bitWriter struct {
 	remain int
 }
 
-func newBitWriter(data []byte) *bitWriter {
+func newBitWriter() *bitWriter {
 	return &bitWriter{
 		data:   make([]byte, 0),
 		remain: 8,
@@ -266,9 +266,8 @@ func (w *bitWriter) write(n int, b byte) {
 // huffmanEncodePack encodes input packs to bits.
 // Note that bits is []byte type, but grouped in 6 bits usually,
 // except when containing 6+ zeros. (6 + 8 bits)
-func huffmanEncodePack(data []byte, iMin, iMax int) []byte {
-	w := newBitWriter(data)
-	packs := make([]int64, 0)
+func huffmanEncodePack(packs []int64, iMin, iMax int) []byte {
+	w := newBitWriter()
 	for i := iMin; i < iMax; i++ {
 		l := huffmanCodeLength(packs[i])
 		if l != 0 {
