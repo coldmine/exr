@@ -180,41 +180,163 @@ func huffmanBuildCodes(freq []int64) ([]int64, int, int) {
 	return packs, dMin, dMax
 }
 
-// huffmanLengthPacksFromCodes returns packs (that only contains length part) from the codes.
-func huffmanLengthPacksFromCodes(codes []int64, iMin, iMax int) []int64 {
+type bitReader struct {
+	data []byte
+	// remain indicates how many bits are remain
+	// in the first byte of data.
+	remain int
+}
+
+func newBitReader(data []byte) *bitReader {
+	return &bitReader{
+		data:   data,
+		remain: 8,
+	}
+}
+
+func (r *bitReader) Read6() byte { return r.read(6) }
+
+func (r *bitReader) Read8() byte { return r.read(8) }
+
+func (r *bitReader) read(n int) byte {
+	if r.remain == 0 {
+		r.remain += 8
+		r.data = r.data[1:]
+	}
+	// see how many bits we can read in the first byte
+	nr := n
+	if r.remain < n {
+		nr = r.remain
+	}
+	unread := n - nr
+	// read
+	b := r.data[0] | ((1 << r.remain) - 1)
+	// recalculate remaining bits in the first byte
+	r.remain -= nr
+	if r.remain == 0 && unread > 0 {
+		r.remain += 8
+		r.data = r.data[1:]
+		// read unread bits
+		b = (b << unread) | (r.data[0] >> (8 - unread))
+	}
+	return b
+}
+
+type bitWriter struct {
+	data []byte
+	// remain indicates how many bits are remain to write
+	// in the first byte of data.
+	remain int
+}
+
+func newBitWriter(data []byte) *bitWriter {
+	return &bitWriter{
+		data:   make([]byte, 0),
+		remain: 8,
+	}
+}
+
+func (w *bitWriter) Write6(b byte) { w.write(6, b) }
+
+func (w *bitWriter) Write8(b byte) { w.write(8, b) }
+
+func (w *bitWriter) write(n int, b byte) {
+	if w.remain == 0 {
+		w.remain += 8
+		w.data = append(w.data, 0)
+	}
+	// see how many bits we can write in the first byte
+	nw := n
+	if w.remain < n {
+		nw = w.remain
+	}
+	unwritten := n - nw
+	// write bits
+	w.data[0] |= (b >> unwritten)
+	// recalcuate remaining bits in the first byte
+	w.remain -= nw
+	if w.remain == 0 && unwritten > 0 {
+		w.remain += 8
+		w.data = append(w.data, 0)
+		// write unwritten bits
+		w.data[0] |= (b << (8 - unwritten))
+	}
+}
+
+// huffmanEncodePack encodes input packs to bits.
+// Note that bits is []byte type, but grouped in 6 bits usually,
+// except when containing 6+ zeros. (6 + 8 bits)
+func huffmanEncodePack(data []byte, iMin, iMax int) []byte {
+	w := newBitWriter(data)
 	packs := make([]int64, 0)
 	for i := iMin; i < iMax; i++ {
-		l := huffmanCodeLength(codes[i])
+		l := huffmanCodeLength(packs[i])
 		if l != 0 {
 			packs = append(packs, l)
 			continue
 		}
 		// zero
 		n := 1
-		// continuous zeros will be compressed
-		// n  | length
-		// ---|--------------------
+		// compress continuous zeros
+		// n  | huffman code length
+		// ---|----------------------
 		// 1  | 0
 		// 2  | 59
 		// 3  | 60
 		// 4  | 61
 		// 5  | 62
-		// 6+ | 63, n-6 (2 packs)
+		// 6+ | 63, n-6  (6 + 8 bits)
 		for i < iMax && n < (255+6) {
-			if huffmanCodeLength(codes[i]) != 0 {
+			if huffmanCodeLength(packs[i]) != 0 {
 				break
 			}
 			i++
 			n++
 		}
 		if n == 1 {
-			packs = append(packs, 0)
+			w.Write6(0)
 		} else if n <= 5 {
-			packs = append(packs, int64(n+57))
+			w.Write6(byte(int(n) + 57))
 		} else {
-			packs = append(packs, 63)
-			packs = append(packs, int64(n-6))
+			w.Write6(byte(63))
+			w.Write8(byte(n - 6))
 		}
 	}
+	return w.data
+}
+
+// huffmanDecodePack returns packs from the bits that contains length info.
+// Note that bits is []byte type, but grouped in 6 bits usually,
+// except when containing 6+ zeros. (6 + 8 bits)
+func huffmanDecodePack(data []byte, dMin, dMax int) []int64 {
+	r := newBitReader(data)
+	packs := make([]int64, HUF_ENCSIZE)
+	for d := dMin; d < dMax; d++ {
+		l := int(r.Read6())
+		packs[d] = int64(l)
+		// decompress continuous zeros
+		// n  | huffman code length
+		// ---|----------------------
+		// 1  | 0
+		// 2  | 59
+		// 3  | 60
+		// 4  | 61
+		// 5  | 62
+		// 6+ | 63, n-6  (6 + 8 bits)
+		if l >= 59 {
+			var n int
+			if l == 63 {
+				n = int(r.Read8()) + 6
+			} else {
+				n = l - 59 + 2
+			}
+			for n != 0 {
+				packs[d] = 0
+				d++
+			}
+			d--
+		}
+	}
+	huffmanBuildCanonicalCodes(packs)
 	return packs
 }
