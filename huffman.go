@@ -1,6 +1,9 @@
 package exr
 
-import "container/heap"
+import (
+	"container/heap"
+	"fmt"
+)
 
 const (
 	HUF_ENCBITS = 16
@@ -182,85 +185,88 @@ func huffmanBuildCodes(freq []int64) ([]int64, int, int) {
 
 type bitReader struct {
 	data []byte
+	// i is the current byte index
+	i int
 	// remain indicates how many bits are remain
-	// in the first byte of data.
+	// in the data[i]
 	remain int
 }
 
 func newBitReader(data []byte) *bitReader {
 	return &bitReader{
 		data:   data,
+		i:      0,
 		remain: 8,
 	}
 }
 
-func (r *bitReader) Read6() byte { return r.read(6) }
-
-func (r *bitReader) Read8() byte { return r.read(8) }
-
-func (r *bitReader) read(n int) byte {
-	if r.remain == 0 {
+// Read reads n (0 - 8) bits from the bitReader.
+// If there is no more data to read, it will return 0.
+func (r *bitReader) Read(n int) byte {
+	if n > 8 || n < 0 {
+		panic(fmt.Sprintf("invalid number of bits to read: %d", n))
+	}
+	if n == 0 {
+		return 0
+	}
+	c := uint16(r.data[r.i]) << 8
+	if r.i+1 < len(r.data) {
+		c |= uint16(r.data[r.i+1])
+	}
+	c = c << (8 - r.remain) // clear unused heading bits.
+	c = c >> (16 - n)       // clear unused tailing bits.
+	r.remain -= n
+	if r.remain <= 0 {
 		r.remain += 8
-		r.data = r.data[1:]
+		r.i += 1
 	}
-	// see how many bits we can read in the first byte
-	nr := n
-	if r.remain < n {
-		nr = r.remain
-	}
-	unread := n - nr
-	// read
-	b := r.data[0] | ((1 << r.remain) - 1)
-	// recalculate remaining bits in the first byte
-	r.remain -= nr
-	if r.remain == 0 && unread > 0 {
-		r.remain += 8
-		r.data = r.data[1:]
-		// read unread bits
-		b = (b << unread) | (r.data[0] >> (8 - unread))
-	}
-	return b
+	return byte(c)
+}
+
+// Done checks whether the bitReader has remaining data to read.
+func (r *bitReader) Done() bool {
+	return r.i >= len(r.data)
 }
 
 type bitWriter struct {
 	data []byte
 	// remain indicates how many bits are remain to write
-	// in the first byte of data.
+	// in the data[i].
 	remain int
 }
 
 func newBitWriter() *bitWriter {
 	return &bitWriter{
 		data:   make([]byte, 0),
-		remain: 8,
+		remain: 0,
 	}
 }
 
-func (w *bitWriter) Write6(b byte) { w.write(6, b) }
-
-func (w *bitWriter) Write8(b byte) { w.write(8, b) }
-
-func (w *bitWriter) write(n int, b byte) {
-	if w.remain == 0 {
+// Write writes n (0 - 8) bits from bitWriter.
+func (w *bitWriter) Write(n int, b byte) {
+	if n > 8 || n < 0 {
+		panic(fmt.Sprintf("invalid number of bits to write: %d", n))
+	}
+	if n == 0 {
+		return
+	}
+	if w.remain <= 0 {
 		w.remain += 8
 		w.data = append(w.data, 0)
 	}
-	// see how many bits we can write in the first byte
-	nw := n
-	if w.remain < n {
-		nw = w.remain
-	}
-	unwritten := n - nw
-	// write bits
-	w.data[0] |= (b >> unwritten)
-	// recalcuate remaining bits in the first byte
-	w.remain -= nw
-	if w.remain == 0 && unwritten > 0 {
+	c := uint16(b)
+	c = c << (16 - n)       // left align
+	c = c >> (8 - w.remain) // shift to remaining
+	w.data[len(w.data)-1] |= byte(c >> 8)
+	if n > w.remain {
 		w.remain += 8
-		w.data = append(w.data, 0)
-		// write unwritten bits
-		w.data[0] |= (b << (8 - unwritten))
+		w.data = append(w.data, byte(c))
 	}
+	w.remain -= n
+}
+
+func (w *bitWriter) Data() []byte {
+	return w.data
 }
 
 // huffmanEncodePack encodes input packs to bits.
@@ -293,12 +299,12 @@ func huffmanEncodePack(packs []int64, iMin, iMax int) []byte {
 			n++
 		}
 		if n == 1 {
-			w.Write6(0)
+			w.Write(6, 0)
 		} else if n <= 5 {
-			w.Write6(byte(int(n) + 57))
+			w.Write(6, byte(int(n)+57))
 		} else {
-			w.Write6(byte(63))
-			w.Write8(byte(n - 6))
+			w.Write(6, byte(63))
+			w.Write(8, byte(n-6))
 		}
 	}
 	return w.data
@@ -311,7 +317,7 @@ func huffmanDecodePack(data []byte, dMin, dMax int) []int64 {
 	r := newBitReader(data)
 	packs := make([]int64, HUF_ENCSIZE)
 	for d := dMin; d < dMax; d++ {
-		l := int(r.Read6())
+		l := int(r.Read(6))
 		packs[d] = int64(l)
 		// decompress continuous zeros
 		// n  | huffman code length
@@ -325,7 +331,7 @@ func huffmanDecodePack(data []byte, dMin, dMax int) []int64 {
 		if l >= 59 {
 			var n int
 			if l == 63 {
-				n = int(r.Read8()) + 6
+				n = int(r.Read(8)) + 6
 			} else {
 				n = l - 59 + 2
 			}
