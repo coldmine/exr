@@ -167,6 +167,7 @@ func huffmanBuildCodes(freq []int64) ([]int64, int, int) {
 					// a's links end.
 					// merge b, then follow b's link.
 					hlink[d] = b
+					merged = true
 				} else {
 					// b's links end.
 					// done.
