@@ -2,7 +2,6 @@ package exr
 
 import (
 	"container/heap"
-	"fmt"
 )
 
 const (
@@ -182,92 +181,6 @@ func huffmanBuildCodes(freq []int64) ([]int64, int, int) {
 	// assign canonical codes to the lengths.
 	huffmanBuildCanonicalCodes(packs)
 	return packs, dMin, dMax
-}
-
-type bitReader struct {
-	data []byte
-	// i is the current byte index
-	i int
-	// remain indicates how many bits are remain
-	// in the data[i]
-	remain int
-}
-
-func newBitReader(data []byte) *bitReader {
-	return &bitReader{
-		data:   data,
-		i:      0,
-		remain: 8,
-	}
-}
-
-// Read reads n (0 - 8) bits from the bitReader.
-// If there is no more data to read, it will return 0.
-func (r *bitReader) Read(n int) byte {
-	if n > 8 || n < 0 {
-		panic(fmt.Sprintf("invalid number of bits to read: %d", n))
-	}
-	if n == 0 {
-		return 0
-	}
-	c := uint16(r.data[r.i]) << 8
-	if r.i+1 < len(r.data) {
-		c |= uint16(r.data[r.i+1])
-	}
-	c = c << (8 - r.remain) // clear unused heading bits.
-	c = c >> (16 - n)       // clear unused tailing bits.
-	r.remain -= n
-	if r.remain <= 0 {
-		r.remain += 8
-		r.i += 1
-	}
-	return byte(c)
-}
-
-// Done checks whether the bitReader has remaining data to read.
-func (r *bitReader) Done() bool {
-	return r.i >= len(r.data)
-}
-
-type bitWriter struct {
-	data []byte
-	// remain indicates how many bits are remain to write
-	// in the data[i].
-	remain int
-}
-
-func newBitWriter() *bitWriter {
-	return &bitWriter{
-		data:   make([]byte, 0),
-		remain: 0,
-	}
-}
-
-// Write writes n (0 - 8) bits from bitWriter.
-func (w *bitWriter) Write(n int, b byte) {
-	if n > 8 || n < 0 {
-		panic(fmt.Sprintf("invalid number of bits to write: %d", n))
-	}
-	if n == 0 {
-		return
-	}
-	if w.remain <= 0 {
-		w.remain += 8
-		w.data = append(w.data, 0)
-	}
-	c := uint16(b)
-	c = c << (16 - n)       // left align
-	c = c >> (8 - w.remain) // shift to remaining
-	w.data[len(w.data)-1] |= byte(c >> 8)
-	if n > w.remain {
-		w.remain += 8
-		w.data = append(w.data, byte(c))
-	}
-	w.remain -= n
-}
-
-func (w *bitWriter) Data() []byte {
-	return w.data
 }
 
 // huffmanEncodePack encodes input packs to bits.

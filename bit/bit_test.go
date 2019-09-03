@@ -1,12 +1,12 @@
-package exr
+package bit
 
 import (
 	"reflect"
 	"testing"
 )
 
-func TestBitReader(t *testing.T) {
-	r := newBitReader([]byte{
+func TestReader(t *testing.T) {
+	r := NewReader([]byte{
 		0b00000000,
 		0b11111111,
 		0b00001111,
@@ -33,8 +33,8 @@ func TestBitReader(t *testing.T) {
 	}
 }
 
-func TestBitWriter(t *testing.T) {
-	w := newBitWriter()
+func TestWriter(t *testing.T) {
+	w := NewWriter()
 	data := []struct {
 		n int
 		b byte
