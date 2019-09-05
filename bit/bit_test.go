@@ -12,24 +12,27 @@ func TestReader(t *testing.T) {
 		0b00001111,
 		0b00110011,
 		0b01010101,
-	})
+	}, 40)
 	nReads := []int{6, 6, 6, 6, 6, 6, 4}
-	want := []byte{
-		0b000000,
-		0b001111,
-		0b111100,
-		0b001111,
-		0b001100,
-		0b110101,
-		0b0101,
+	want := [][]byte{
+		[]byte{0b00000000},
+		[]byte{0b00111100},
+		[]byte{0b11110000},
+		[]byte{0b00111100},
+		[]byte{0b00110000},
+		[]byte{0b11010100},
+		[]byte{0b01010000},
 	}
-	got := make([]byte, len(nReads))
-	for i, n := range nReads {
-		g := r.Read(n)
-		got[i] = g
+	got := make([][]byte, 0)
+	for _, n := range nReads {
+		got = append(got, r.Read(n))
+	}
+	n := r.Remain()
+	if n != 0 {
+		t.Fatalf("number of remaining bits should be 0, got %d", n)
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %v, want %v", got, want)
+		t.Fatalf("want %v, got %v", want, got)
 	}
 }
 

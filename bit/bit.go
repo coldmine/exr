@@ -4,47 +4,78 @@ import "fmt"
 
 type Reader struct {
 	data []byte
-	// i is the current byte index
-	i int
-	// remain indicates how many bits are remain
-	// in the data[i]
-	remain int
+	i    int // current bit index
+	n    int // number of bits in data
 }
 
-func NewReader(data []byte) *Reader {
+func NewReader(data []byte, n int) *Reader {
 	return &Reader{
-		data:   data,
-		i:      0,
-		remain: 8,
+		data: data,
+		i:    0,
+		n:    n,
 	}
 }
 
-// Read reads n (0 - 8) bits from the Reader.
-// If there is no more data to read, it will return 0.
-func (r *Reader) Read(n int) byte {
-	if n > 8 || n < 0 {
+// Read reads n bits from the Reader, and returns it as []byte form.
+//
+// If n == 0, it will return empty slice.
+// If n % 8 != 0, returned slice's last byte contains left-aligned bits.
+// For example, if n == 9, returned slices is [oooooooo oxxxxxxx]
+// where o is meaningful, and x is meaningless bit. (all x should be 0)
+// If n is larger than number of remaining bits, still it will return
+// bytes for n bits with unreadable bits are filled with 0.
+// Reader's Remain function can be used to validate returned data.
+func (r *Reader) Read(n int) []byte {
+	if n < 0 {
 		panic(fmt.Sprintf("invalid number of bits to read: %d", n))
 	}
 	if n == 0 {
-		return 0
+		return []byte{}
 	}
-	c := uint16(r.data[r.i]) << 8
-	if r.i+1 < len(r.data) {
-		c |= uint16(r.data[r.i+1])
+	// nhead is number of heading bits to clip.
+	nhead := r.i % 8
+	// buf is the reader's data zone we are interested.
+	min := r.i / 8
+	r.i += n
+	if r.i > r.n || r.i > len(r.data)*8 {
+		// TODO: handle this
+		panic("no")
 	}
-	c = c << (8 - r.remain) // clear unused heading bits.
-	c = c >> (16 - n)       // clear unused tailing bits.
-	r.remain -= n
-	if r.remain <= 0 {
-		r.remain += 8
-		r.i += 1
+	max := r.i / 8
+	if r.i%8 != 0 {
+		max++
 	}
-	return byte(c)
+	if max > len(r.data) {
+		max = len(r.data)
+	}
+	buf := r.data[min:max]
+	// buf is shifted (unless nhead is 0),
+	// un-shift while writing it to output bytes.
+	nout := n / 8
+	if n%8 != 0 {
+		nout++
+	}
+	out := make([]byte, nout)
+	c := buf[0] << nhead
+	for i := range out {
+		b := byte(0)
+		if i+1 < len(buf) {
+			b = buf[i+1]
+		}
+		out[i] = c | b>>(8-nhead)
+		c = b << nhead
+	}
+	// remove trailing bits in the last byte
+	ntrail := 8 - (n % 8)
+	c = out[len(out)-1]
+	out[len(out)-1] = (c >> ntrail) << ntrail
+	return out
 }
 
-// Done checks whether the Reader has remaining data to read.
-func (r *Reader) Done() bool {
-	return r.i >= len(r.data)
+// Remain returns number of remaining bits in the reader.
+// If it reads more than it have, it will return a negative number.
+func (r *Reader) Remain() int {
+	return r.n - r.i
 }
 
 type Writer struct {
