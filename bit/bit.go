@@ -38,8 +38,7 @@ func (r *Reader) Read(n int) []byte {
 	min := r.i / 8
 	r.i += n
 	if r.i > r.n || r.i > len(r.data)*8 {
-		// TODO: handle this
-		panic("no")
+		r.i = r.n
 	}
 	max := r.i / 8
 	if r.i%8 != 0 {

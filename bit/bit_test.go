@@ -38,6 +38,21 @@ func TestReader(t *testing.T) {
 				[]byte{0b00110011, 0b01010101},
 			},
 		},
+		{
+			// read more than the reader have
+			nreads: []int{50},
+			want: [][]byte{
+				[]byte{
+					0b00000000,
+					0b11111111,
+					0b00001111,
+					0b00110011,
+					0b01010101,
+					0b00000000,
+					0b00000000,
+				},
+			},
+		},
 	}
 	for i, c := range cases {
 		r.Seek(0)
