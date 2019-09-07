@@ -13,26 +13,45 @@ func TestReader(t *testing.T) {
 		0b00110011,
 		0b01010101,
 	}, 40)
-	nReads := []int{6, 6, 6, 6, 6, 6, 4}
-	want := [][]byte{
-		[]byte{0b00000000},
-		[]byte{0b00111100},
-		[]byte{0b11110000},
-		[]byte{0b00111100},
-		[]byte{0b00110000},
-		[]byte{0b11010100},
-		[]byte{0b01010000},
+	cases := []struct {
+		nreads []int
+		want   [][]byte
+	}{
+		{
+			nreads: []int{6, 6, 6, 6, 6, 6, 4},
+			want: [][]byte{
+				[]byte{0b00000000},
+				[]byte{0b00111100},
+				[]byte{0b11110000},
+				[]byte{0b00111100},
+				[]byte{0b00110000},
+				[]byte{0b11010100},
+				[]byte{0b01010000},
+			},
+		},
+		{
+			nreads: []int{4, 8, 12, 16},
+			want: [][]byte{
+				[]byte{0b00000000},
+				[]byte{0b00001111},
+				[]byte{0b11110000, 0b11110000},
+				[]byte{0b00110011, 0b01010101},
+			},
+		},
 	}
-	got := make([][]byte, 0)
-	for _, n := range nReads {
-		got = append(got, r.Read(n))
-	}
-	n := r.Remain()
-	if n != 0 {
-		t.Fatalf("number of remaining bits should be 0, got %d", n)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("want %v, got %v", want, got)
+	for i, c := range cases {
+		r.Seek(0)
+		got := make([][]byte, 0)
+		for _, n := range c.nreads {
+			got = append(got, r.Read(n))
+		}
+		n := r.Remain()
+		if n != 0 {
+			t.Fatalf("number of remaining bits should be 0, got %d", n)
+		}
+		if !reflect.DeepEqual(got, c.want) {
+			t.Fatalf("got[%d]: %v, want: %v", i, got, c.want)
+		}
 	}
 }
 

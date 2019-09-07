@@ -66,10 +66,16 @@ func (r *Reader) Read(n int) []byte {
 		c = b << nhead
 	}
 	// remove trailing bits in the last byte
-	ntrail := 8 - (n % 8)
-	c = out[len(out)-1]
-	out[len(out)-1] = (c >> ntrail) << ntrail
+	if n%8 != 0 {
+		ntrail := 8 - (n % 8)
+		c = out[len(out)-1]
+		out[len(out)-1] = (c >> ntrail) << ntrail
+	}
 	return out
+}
+
+func (r *Reader) Seek(to int) {
+	r.i = to
 }
 
 // Remain returns number of remaining bits in the reader.
