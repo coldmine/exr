@@ -1,6 +1,8 @@
 package bit
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Reader struct {
 	data []byte
@@ -24,6 +26,7 @@ func NewReader(data []byte, n int) *Reader {
 // where o is meaningful, and x is meaningless bit. (all x should be 0)
 // If n is larger than number of remaining bits, still it will return
 // bytes for n bits with unreadable bits are filled with 0.
+//
 // Reader's Remain function can be used to validate returned data.
 func (r *Reader) Read(n int) []byte {
 	if n < 0 {
@@ -83,43 +86,82 @@ func (r *Reader) Remain() int {
 	return r.n - r.i
 }
 
+// Writer is bit writer.
 type Writer struct {
 	data []byte
-	// remain indicates how many bits are remain to write
-	// in the data[i].
-	remain int
+	i    int
+	n    int
 }
 
-func NewWriter() *Writer {
+// NewWriter returns a new Writer.
+func NewWriter(n int, data []byte) *Writer {
+	nbyte := n / 8
+	if n%8 != 0 {
+		nbyte++
+	}
+	if nbyte > len(data) {
+		panic("data buffer is smaller than n needs")
+	}
 	return &Writer{
-		data:   make([]byte, 0),
-		remain: 0,
+		data: data[:nbyte],
+		i:    0,
+		n:    n,
 	}
 }
 
-// Write writes n (0 - 8) bits from Writer.
-func (w *Writer) Write(n int, b byte) {
-	if n > 8 || n < 0 {
-		panic(fmt.Sprintf("invalid number of bits to write: %d", n))
-	}
+// Write writes n bits to Writer.
+//
+// If n == 0, it does nothing.
+// If n < 0, it panics.
+// If n is greater than the writer's remaining buffer, it will panic.
+// If n is greater than size of input bytes, it will panic.
+// If n % 8 != 0, trailing bytes and bits are discarded.
+//
+// Writer's Remain function can be used to check number of bits are remaining
+// in the writer's data buffer.
+func (w *Writer) Write(n int, bs []byte) {
 	if n == 0 {
 		return
 	}
-	if w.remain <= 0 {
-		w.remain += 8
-		w.data = append(w.data, 0)
+	if n < 0 {
+		panic(fmt.Sprintf("invalid number of bits to write: %d", n))
 	}
-	c := uint16(b)
-	c = c << (16 - n)       // left align
-	c = c >> (8 - w.remain) // shift to remaining
-	w.data[len(w.data)-1] |= byte(c >> 8)
-	if n > w.remain {
-		w.remain += 8
-		w.data = append(w.data, byte(c))
+	if n > len(bs)*8 {
+		panic(fmt.Sprintf("tried to write more bits than the input bytes offer"))
 	}
-	w.remain -= n
+	if n > w.n-w.i {
+		panic(fmt.Sprintf("tried to write more bits than the writer can have"))
+	}
+	// discard trailing bytes and bits which is not for this writing
+	nbyte := n / 8
+	nend := n % 8
+	if nend != 0 {
+		nbyte++
+	}
+	bs = bs[:nbyte]
+	if nend != 0 {
+		ntrail := 8 - nend
+		bs[len(bs)-1] = (bs[len(bs)-1] >> ntrail) << ntrail
+	}
+	// write input bytes
+	i := w.i
+	for _, b := range bs {
+		nhead := i % 8
+		w.data[i/8] |= b >> nhead
+		if (i/8)+1 < len(w.data) {
+			w.data[(i/8)+1] = b << (8 - nhead)
+		}
+		i += 8
+	}
+	w.i = w.i + n
 }
 
+// Data returns the writer's data written so far.
 func (w *Writer) Data() []byte {
 	return w.data
+}
+
+// Remain returns number of remaining bits in the writer.
+func (w *Writer) Remain() int {
+	return w.n - w.i
 }

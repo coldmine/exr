@@ -70,32 +70,80 @@ func TestReader(t *testing.T) {
 	}
 }
 
+type bitSlice struct {
+	n int
+	b []byte
+}
+
 func TestWriter(t *testing.T) {
-	w := NewWriter()
-	data := []struct {
-		n int
-		b byte
+	cases := []struct {
+		bits []bitSlice
+		want []byte
 	}{
-		{6, 0b000000},
-		{6, 0b001111},
-		{6, 0b111100},
-		{6, 0b001111},
-		{6, 0b001100},
-		{6, 0b110101},
-		{4, 0b0101},
+		{
+			bits: []bitSlice{
+				{6, []byte{0b00000000}},
+				{6, []byte{0b00111100}},
+				{6, []byte{0b11110000}},
+				{6, []byte{0b00111100}},
+				{6, []byte{0b00110000}},
+				{6, []byte{0b11010100}},
+				{4, []byte{0b01010000}},
+			},
+			want: []byte{
+				0b00000000,
+				0b11111111,
+				0b00001111,
+				0b00110011,
+				0b01010101,
+			},
+		},
+		{
+			bits: []bitSlice{
+				{4, []byte{0b00000000}},
+				{8, []byte{0b00001111}},
+				{12, []byte{0b11110000, 0b11110000}},
+				{16, []byte{0b00110011, 0b01010101}},
+			},
+			want: []byte{
+				0b00000000,
+				0b11111111,
+				0b00001111,
+				0b00110011,
+				0b01010101,
+			},
+		},
+		{
+			bits: []bitSlice{
+				{40, []byte{
+					0b00000000,
+					0b11111111,
+					0b00001111,
+					0b00110011,
+					0b01010101,
+				}},
+			},
+			want: []byte{
+				0b00000000,
+				0b11111111,
+				0b00001111,
+				0b00110011,
+				0b01010101,
+			},
+		},
 	}
-	for _, d := range data {
-		w.Write(d.n, d.b)
-	}
-	got := w.Data()
-	want := []byte{
-		0b00000000,
-		0b11111111,
-		0b00001111,
-		0b00110011,
-		0b01010101,
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %v, want %v", got, want)
+	for i, c := range cases {
+		w := NewWriter(40, make([]byte, 5))
+		for _, b := range c.bits {
+			w.Write(b.n, b.b)
+		}
+		n := w.Remain()
+		if n != 0 {
+			t.Fatalf("number of remaining bits should be 0, got %d", n)
+		}
+		got := w.Data()
+		if !reflect.DeepEqual(got, c.want) {
+			t.Fatalf("got[%d] %v, want %v", i, got, c.want)
+		}
 	}
 }
