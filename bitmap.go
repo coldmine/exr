@@ -1,15 +1,21 @@
 package exr
 
 const (
-	USHORT_RANGE = 1 << 16
-	BITMAP_SIZE  = USHORT_RANGE >> 3
+	DATA_RANGE  = 1 << 16
+	BITMAP_SIZE = DATA_RANGE / 8
 )
 
-// bitmap is used instead of []bool because it is more efficient.
-// Why do we use bitmap instead of direct for-loop for data lookup?
-// It has a side effect let the final lut is organized as ordered.
+// bitmap is gather information each data existing with []byte
+// instead of []bool because it is more memory efficient.
+//
+// If it was []bool, we could do `bitmap[i] = true` to show i exist
+// in the data.
+// Now we should do `bitmap[i >> 3] = i & b111` instead.
+//
+// Why do we use bitmap instead of direct for-loop to generate lut?
+// It has a effect let the lut is ordered (value increased as data increased).
 
-func bitmapFromData(data []int16) ([]byte, int, int) {
+func bitmapFromData(data []uint16) ([]byte, int, int) {
 	bitmap := make([]byte, BITMAP_SIZE)
 	for _, d := range data {
 		bitmap[d>>3] |= 1 << (d & 0b111)
@@ -33,13 +39,13 @@ func bitmapFromData(data []int16) ([]byte, int, int) {
 	return bitmap, min, max
 }
 
-func forwardLutFromBitmap(bitmap []byte) ([]int16, int) {
-	lut := make([]int16, USHORT_RANGE)
+func forwardLutFromBitmap(bitmap []byte) ([]uint16, int) {
+	lut := make([]uint16, DATA_RANGE)
 	k := 0
 	for d := range lut {
 		hasD := (bitmap[d>>3] & (1 << (d & 0b111))) != 0
 		if d == 0 || hasD {
-			lut[d] = int16(k)
+			lut[d] = uint16(k)
 			k++
 		} else {
 			lut[d] = 0
@@ -49,13 +55,13 @@ func forwardLutFromBitmap(bitmap []byte) ([]int16, int) {
 	return lut, max
 }
 
-func reverseLutFromBitmap(bitmap []byte) ([]int16, int) {
-	lut := make([]int16, USHORT_RANGE)
+func reverseLutFromBitmap(bitmap []byte) ([]uint16, int) {
+	lut := make([]uint16, DATA_RANGE)
 	k := 0
 	for d := range lut {
 		hasD := (bitmap[d>>3] & (1 << (d & 0b111))) != 0
 		if d == 0 || hasD {
-			lut[k] = int16(d)
+			lut[k] = uint16(d)
 			k++
 		}
 	}
@@ -63,7 +69,7 @@ func reverseLutFromBitmap(bitmap []byte) ([]int16, int) {
 	return lut, max
 }
 
-func applyLut(data []int16, lut []int16) {
+func applyLut(data []uint16, lut []uint16) {
 	for i := range data {
 		data[i] = lut[data[i]]
 	}
