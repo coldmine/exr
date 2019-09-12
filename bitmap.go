@@ -5,16 +5,20 @@ const (
 	BITMAP_SIZE = DATA_RANGE / 8
 )
 
-// bitmap is gather information each data existing with []byte
-// instead of []bool because it is more memory efficient.
+// bitmap checks existance of numbers in 0 - DATA_RANGE from the input data,
+// usually we could do this with map[uint16]bool or []bool,
+// but []byte is more memory efficient.
 //
-// If it was []bool, we could do `bitmap[i] = true` to show i exist
+// If it was map[uint16]bool, we could do `bitmap[i] = true` to show i exist
 // in the data.
 // Now we should do `bitmap[i >> 3] = i & b111` instead.
 //
-// Why do we use bitmap instead of direct for-loop to generate lut?
-// It has a effect let the lut is ordered (value increased as data increased).
+// Why do we use bitmap instead of for-loop to generate lut?
+// It has a effect let the lut is ordered
+// (value increased as a data number increased).
 
+// bitmapFromData checks existance of numbers, and put them into a bitmap.
+// It also returns min, max number in the bitmap.
 func bitmapFromData(data []uint16) ([]byte, int, int) {
 	bitmap := make([]byte, BITMAP_SIZE)
 	for _, d := range data {
@@ -39,6 +43,8 @@ func bitmapFromData(data []uint16) ([]byte, int, int) {
 	return bitmap, min, max
 }
 
+// forwardLutFromBitmap returns a lut and it's max value.
+// The lut maps a data number to a incremental number.
 func forwardLutFromBitmap(bitmap []byte) ([]uint16, int) {
 	lut := make([]uint16, DATA_RANGE)
 	k := 0
@@ -55,6 +61,8 @@ func forwardLutFromBitmap(bitmap []byte) ([]uint16, int) {
 	return lut, max
 }
 
+// reverseLutFromBitmap returns a reverse lut and it's max index.
+// The lut restores a data number from a incremental number.
 func reverseLutFromBitmap(bitmap []byte) ([]uint16, int) {
 	lut := make([]uint16, DATA_RANGE)
 	k := 0
@@ -69,6 +77,8 @@ func reverseLutFromBitmap(bitmap []byte) ([]uint16, int) {
 	return lut, max
 }
 
+// applyLut applies lut transform to data.
+// It will change the data in place.
 func applyLut(data []uint16, lut []uint16) {
 	for i := range data {
 		data[i] = lut[data[i]]
