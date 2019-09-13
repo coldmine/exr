@@ -1,53 +1,69 @@
 package exr
 
 const (
-	DATA_RANGE  = 1 << 16
-	BITMAP_SIZE = DATA_RANGE / 8
+	DATA_RANGE = 1 << 16
 )
 
-// bitmap shows whether each number in 0 - DATA_RANGE is exist on input data.
-//
-// Usually we could do this check with [DATA_RANGE]bool,
-// but [BITMAP_SIZE]byte is more memory efficient.
-//
-// If it was [DATA_RANGE]bool, we could simply do `bitmap[i] = true`
-// to show i exist in the data.
-// Now we should do `bitmap[i >> 3] = 1 << (i & b111)` instead.
+// bitmap shows whether each number in 0 - DATA_RANGE is exist,
+// in a memory efficient way.
+type bitmap []byte
 
-// bitmapFromData checks existence of numbers, and put them into a bitmap.
-// It also returns min, max number in the bitmap.
-func bitmapFromData(data []uint16) ([]byte, int, int) {
-	bitmap := make([]byte, BITMAP_SIZE)
-	for _, d := range data {
-		bitmap[d>>3] |= 1 << (d & 0b111)
+func newBitmap() bitmap {
+	b := make([]byte, DATA_RANGE/8)
+	return b
+}
+
+func (b bitmap) Set(i uint16) {
+	b[i>>3] |= 1 << (i & 0b111)
+}
+
+func (b bitmap) Unset(i uint16) {
+	if !b.Has(i) {
+		return
 	}
-	// zero is not stored to bitmap
-	if (bitmap[0] & 1) != 0 {
-		bitmap[0]--
-	}
-	min := BITMAP_SIZE - 1
-	max := 0
-	for i, v := range bitmap {
-		if v != 0 {
-			if i < min {
-				min = i
-			}
-			if i > max {
-				max = i
-			}
+	b[i>>3] -= 1 << (i & 0b111)
+}
+
+func (b bitmap) Has(i uint16) bool {
+	return (b[i>>3] & (1 << (i & 0b111))) != 0
+}
+
+func (b bitmap) MinByteIndex(i uint16) int {
+	for i := 0; i < len(b); i++ {
+		if b[i] != 0 {
+			return i
 		}
 	}
-	return bitmap, min, max
+	return len(b) - 1
+}
+
+func (b bitmap) MaxByteIndex(i uint16) int {
+	for i := len(b) - 1; i >= 0; i-- {
+		if b[i] != 0 {
+			return i
+		}
+	}
+	return 0
+}
+
+// bitmapFromData creates a new bitmap from data.
+func bitmapFromData(data []uint16) bitmap {
+	b := newBitmap()
+	for _, d := range data {
+		b.Set(d)
+	}
+	// zero is explicitly not stored into this bitmap
+	b.Unset(0)
+	return b
 }
 
 // forwardLutFromBitmap returns a lut and it's max value.
 // The lut maps a data number to a incremental number.
-func forwardLutFromBitmap(bitmap []byte) ([]uint16, int) {
+func forwardLutFromBitmap(b bitmap) ([]uint16, int) {
 	lut := make([]uint16, DATA_RANGE)
 	k := 0
 	for d := range lut {
-		hasD := (bitmap[d>>3] & (1 << (d & 0b111))) != 0
-		if d == 0 || hasD {
+		if d == 0 || b.Has(uint16(d)) {
 			lut[d] = uint16(k)
 			k++
 		} else {
@@ -60,12 +76,11 @@ func forwardLutFromBitmap(bitmap []byte) ([]uint16, int) {
 
 // reverseLutFromBitmap returns a reverse lut and it's max index.
 // The lut restores a data number from a incremental number.
-func reverseLutFromBitmap(bitmap []byte) ([]uint16, int) {
+func reverseLutFromBitmap(b bitmap) ([]uint16, int) {
 	lut := make([]uint16, DATA_RANGE)
 	k := 0
 	for d := range lut {
-		hasD := (bitmap[d>>3] & (1 << (d & 0b111))) != 0
-		if d == 0 || hasD {
+		if d == 0 || b.Has(uint16(d)) {
 			lut[k] = uint16(d)
 			k++
 		}
