@@ -5,19 +5,16 @@ const (
 	BITMAP_SIZE = DATA_RANGE / 8
 )
 
-// bitmap checks existance of numbers in 0 - DATA_RANGE from the input data,
-// usually we could do this with map[uint16]bool or []bool,
-// but []byte is more memory efficient.
+// bitmap shows whether each number in 0 - DATA_RANGE is exist on input data.
 //
-// If it was map[uint16]bool, we could do `bitmap[i] = true` to show i exist
-// in the data.
-// Now we should do `bitmap[i >> 3] = i & b111` instead.
+// Usually we could do this check with [DATA_RANGE]bool,
+// but [BITMAP_SIZE]byte is more memory efficient.
 //
-// Why do we use bitmap instead of for-loop to generate lut?
-// It has a effect let the lut is ordered
-// (value increased as a data number increased).
+// If it was [DATA_RANGE]bool, we could simply do `bitmap[i] = true`
+// to show i exist in the data.
+// Now we should do `bitmap[i >> 3] = 1 << (i & b111)` instead.
 
-// bitmapFromData checks existance of numbers, and put them into a bitmap.
+// bitmapFromData checks existence of numbers, and put them into a bitmap.
 // It also returns min, max number in the bitmap.
 func bitmapFromData(data []uint16) ([]byte, int, int) {
 	bitmap := make([]byte, BITMAP_SIZE)
