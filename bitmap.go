@@ -1,15 +1,29 @@
 package exr
 
+import "fmt"
+
 const (
 	DATA_RANGE = 1 << 16
 )
 
 // bitmap shows whether each number in 0 - DATA_RANGE is exist,
 // in a memory efficient way.
+// Because bitmap in exr is for dealing []uint16 data,
+// it's length is DATA_RANGE/8 at maximum.
 type bitmap []byte
 
-func newBitmap() bitmap {
-	b := make([]byte, DATA_RANGE/8)
+// newBitmap returns a new bitmap that can hold up to n - 1.
+// If n % 8 != 0, it will round up to nearest multiple of 8.
+// When n is greater than DATA_RANGE, it will panic.
+func newBitmap(n int) bitmap {
+	if n > DATA_RANGE {
+		panic(fmt.Sprintf("bitmap could not hold more than %d\n", DATA_RANGE))
+	}
+	nbyte := n / 8
+	if n%8 != 0 {
+		nbyte++
+	}
+	b := make([]byte, nbyte)
 	return b
 }
 
@@ -44,17 +58,6 @@ func (b bitmap) MaxByteIndex(i uint16) int {
 		}
 	}
 	return 0
-}
-
-// bitmapFromData creates a new bitmap from data.
-func bitmapFromData(data []uint16) bitmap {
-	b := newBitmap()
-	for _, d := range data {
-		b.Set(d)
-	}
-	// zero is explicitly not stored into this bitmap
-	b.Unset(0)
-	return b
 }
 
 // forwardLutFromBitmap returns a lut and it's max value.
