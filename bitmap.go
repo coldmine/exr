@@ -42,7 +42,7 @@ func (b bitmap) Has(i uint16) bool {
 	return (b[i>>3] & (1 << (i & 0b111))) != 0
 }
 
-func (b bitmap) MinByteIndex(i uint16) int {
+func (b bitmap) MinByteIndex() int {
 	for i := 0; i < len(b); i++ {
 		if b[i] != 0 {
 			return i
@@ -51,7 +51,7 @@ func (b bitmap) MinByteIndex(i uint16) int {
 	return len(b) - 1
 }
 
-func (b bitmap) MaxByteIndex(i uint16) int {
+func (b bitmap) MaxByteIndex() int {
 	for i := len(b) - 1; i >= 0; i-- {
 		if b[i] != 0 {
 			return i

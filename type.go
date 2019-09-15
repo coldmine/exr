@@ -72,6 +72,20 @@ func (p pixelType) String() string {
 	}
 }
 
+// pixelSize returns pixelSize in bytes
+func pixelSize(p pixelType) int {
+	switch p {
+	case UINT:
+		return 4
+	case HALF:
+		return 2
+	case FLOAT:
+		return 4
+	default:
+		return 0
+	}
+}
+
 type channel struct {
 	name      string
 	pixelType pixelType

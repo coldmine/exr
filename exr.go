@@ -30,7 +30,7 @@ var MagicNumber = 20000630
 // EXR file have little endian form.
 var parse = binary.LittleEndian
 
-var numLinesPerBlock = map[compression]int32{
+var numLinesPerBlock = map[compression]int{
 	NO_COMPRESSION:    1,
 	RLE_COMPRESSION:   1,
 	ZIPS_COMPRESSION:  1,
@@ -229,7 +229,7 @@ func Decode(path string) (image.Image, error) {
 	fmt.Printf("line order: %v\n", lineOrder)
 
 	// Parse offsets.
-	nLines := dataWindow.yMax - dataWindow.yMin + 1
+	nLines := int(dataWindow.yMax - dataWindow.yMin + 1)
 	nChunks := nLines / blockLines
 	if nLines%blockLines != 0 {
 		nChunks++
@@ -265,26 +265,41 @@ func Decode(path string) (image.Image, error) {
 			log.Fatal("read offset failed")
 		}
 		size := int(parse.Uint32(n))
-		block, err := read(r, size)
+		compressed, err := read(r, size)
 		if err != nil {
-			log.Fatal("read block data failed")
+			log.Fatal("read compressed data failed")
 		}
-		channels := decompress(block, compressionMethod)
+		width := int(dataWindow.xMax - dataWindow.xMin + 1)
+		b := newBlockInfo(compressionMethod, channels, width)
+		raw := decompress(compressed, b)
 		fmt.Println(y, size, channels)
 	}
 	return nil, nil
 }
 
-func decompress(b []byte, method compression) []image.Image {
-	if method == PIZ_COMPRESSION {
-		return decompressPIZ(b)
+func decompress(compressed []byte, block blockInfo) []byte {
+	if block.compression == PIZ_COMPRESSION {
+		return pizDecompress(compressed, block)
 	}
-	log.Fatalf("decompress of %d not supported yet", method)
+	log.Fatalf("decompress of %d not supported yet", block.compression)
 	return nil
 }
 
-func decompressPIZ(b []byte) []image.Image {
-	return nil
+// blockInfo contains information of block to compress or decompress the images.
+type blockInfo struct {
+	compression compression
+	channels    chlist
+	width       int
+	height      int
+}
+
+func newBlockInfo(c compression, channels chlist, width int) blockInfo {
+	return blockInfo{
+		compression: c,
+		channels:    channels,
+		width:       width,
+		height:      numLinesPerBlock[c],
+	}
 }
 
 type attribute struct {
