@@ -72,37 +72,37 @@ func huffmanCountFrequencies(data []uint16) []uint64 {
 }
 
 type indexHeap struct {
-	data  []int
+	idx   []int
 	value func(d int) uint64
 }
 
-func newIndexHeap(data []int, value func(d int) uint64) indexHeap {
+func newIndexHeap(idx []int, value func(d int) uint64) indexHeap {
 	return indexHeap{
-		data:  data,
+		idx:   idx,
 		value: value,
 	}
 }
 
 func (h indexHeap) Len() int {
-	return len(h.data)
+	return len(h.idx)
 }
 
 func (h indexHeap) Less(i, j int) bool {
-	return h.value(h.data[i]) < h.value(h.data[j])
+	return h.value(h.idx[i]) < h.value(h.idx[j])
 }
 
 func (h indexHeap) Swap(i, j int) {
-	h.data[i], h.data[j] = h.data[j], h.data[i]
+	h.idx[i], h.idx[j] = h.idx[j], h.idx[i]
 }
 
 func (h indexHeap) Push(v interface{}) {
-	h.data = append(h.data, v.(int))
+	h.idx = append(h.idx, v.(int))
 }
 
 func (h indexHeap) Pop() interface{} {
-	n := len(h.data)
-	v := h.data[n-1]
-	h.data = h.data[:n-1]
+	n := len(h.idx)
+	v := h.idx[n-1]
+	h.idx = h.idx[:n-1]
 	return v
 }
 
