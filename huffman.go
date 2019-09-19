@@ -254,7 +254,7 @@ func huffmanBuildDecodingTable(packs []uint64, dMin, dMax uint64) hdec {
 			pl.lits = append(pl.lits, d)
 		}
 	}
-	return nil
+	return dec
 }
 
 // huffmanPackEncodingTable encodes input packs to bits.
