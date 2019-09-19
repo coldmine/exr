@@ -193,8 +193,8 @@ func huffmanBuildEncodingTable(freq []uint64) ([]uint64, int, int) {
 //
 // index of hdec indicates the heading bits of a code.
 // these heading bits may or may not enough to store the code.
-// when it's enough, the code is left aligned and
-// trailing bits are not that important.
+// when it's enough, only n-bits on the left are meaningful.
+// (n is length of the code)
 // when it's not enough, all data from codes having
 // the heading bits are stored to hdec[d].lits
 //
