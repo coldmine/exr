@@ -62,7 +62,7 @@ func (b bitmap) MaxByteIndex() int {
 
 // forwardLutFromBitmap returns a lut and it's max value.
 // The lut maps a data number to a incremental number.
-func forwardLutFromBitmap(b bitmap) ([]uint16, int) {
+func forwardLutFromBitmap(b bitmap) []uint16 {
 	lut := make([]uint16, DATA_RANGE)
 	k := 0
 	for d := range lut {
@@ -73,13 +73,12 @@ func forwardLutFromBitmap(b bitmap) ([]uint16, int) {
 			lut[d] = 0
 		}
 	}
-	max := k - 1
-	return lut, max
+	return lut
 }
 
 // reverseLutFromBitmap returns a reverse lut and it's max index.
 // The lut restores a data number from a incremental number.
-func reverseLutFromBitmap(b bitmap) ([]uint16, int) {
+func reverseLutFromBitmap(b bitmap) []uint16 {
 	lut := make([]uint16, DATA_RANGE)
 	k := 0
 	for d := range lut {
@@ -88,8 +87,7 @@ func reverseLutFromBitmap(b bitmap) ([]uint16, int) {
 			k++
 		}
 	}
-	max := k - 1
-	return lut, max
+	return lut
 }
 
 // applyLut applies lut transform to data.

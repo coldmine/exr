@@ -94,16 +94,14 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer.
-func NewWriter(n int, data []byte) *Writer {
+func NewWriter(n int) *Writer {
 	nbyte := n / 8
 	if n%8 != 0 {
 		nbyte++
 	}
-	if nbyte > len(data) {
-		panic("data buffer is smaller than n needs")
-	}
+	data := make([]byte, nbyte)
 	return &Writer{
-		data: data[:nbyte],
+		data: data,
 		i:    0,
 		n:    n,
 	}
@@ -159,6 +157,11 @@ func (w *Writer) Write(n int, bs []byte) {
 // Data returns the writer's data written so far.
 func (w *Writer) Data() []byte {
 	return w.data
+}
+
+// Index returns current cursor index of writer.
+func (w *Writer) Index() int {
+	return w.i
 }
 
 // Remain returns number of remaining bits in the writer.

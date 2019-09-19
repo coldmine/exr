@@ -272,14 +272,15 @@ func Decode(path string) (image.Image, error) {
 		width := int(dataWindow.xMax - dataWindow.xMin + 1)
 		b := newBlockInfo(compressionMethod, channels, width)
 		raw := decompress(compressed, b)
-		fmt.Println(y, size, channels)
+		fmt.Println(y, size, channels, len(raw))
 	}
 	return nil, nil
 }
 
-func decompress(compressed []byte, block blockInfo) []byte {
+func decompress(compressed []byte, block blockInfo) []uint16 {
 	if block.compression == PIZ_COMPRESSION {
-		return pizDecompress(compressed, block)
+		return nil
+		// return pizDecompress(compressed, block)
 	}
 	log.Fatalf("decompress of %d not supported yet", block.compression)
 	return nil

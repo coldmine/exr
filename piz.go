@@ -37,14 +37,14 @@ func pizCompress(raw []uint16, block blockInfo) []byte {
 		// TODO: ySampling
 	}
 	// apply forward lut
-	lut, maxValue := forwardLutFromBitmap(bitm)
+	lut := forwardLutFromBitmap(bitm)
 	applyLut(raw, lut)
 	// wavelet encoding
-	for _, ch := range block.channels {
+	for range block.channels {
 		// TODO: applyWaveletEncode(chData[ch.name], maxValue)
 	}
 	// compress
-	cdata := huffmanCompress(raw)
+	cdata := huffmanCompress(raw, block)
 	parse.PutUint32(compressed[i:], uint32(len(compressed)))
 	i += 4
 	for _, d := range cdata {
@@ -54,7 +54,7 @@ func pizCompress(raw []uint16, block blockInfo) []byte {
 	return compressed
 }
 
-func pizDecompress(compressed []byte, block blockInfo) []byte {
+func pizDecompress(compressed []byte, block blockInfo) []uint16 {
 	// get bitmap info
 	minNonZero := parse.Uint32(compressed[0:])
 	maxNonZero := parse.Uint32(compressed[4:])
@@ -65,7 +65,7 @@ func pizDecompress(compressed []byte, block blockInfo) []byte {
 	lc := parse.Uint32(compressed[i:])
 	i += 4
 	cdata := compressed[i : i+lc]
-	raw := huffmanDecompress(cdata)
+	raw := huffmanDecompress(cdata, block)
 	// wavlet decode each channel
 	chData := make(map[string][]uint16)
 	var n, m int
@@ -75,11 +75,11 @@ func pizDecompress(compressed []byte, block blockInfo) []byte {
 		n = m
 		// TODO: ySampling
 	}
-	for _, ch := range block.channels {
+	for range block.channels {
 		// TODO: applyWaveletDecode(chData[ch.name], maxValue)
 	}
 	// apply reverse lut
-	lut, maxValue := reverseLutFromBitmap(bitm)
+	lut := reverseLutFromBitmap(bitm)
 	applyLut(raw, lut)
 	return raw
 }
