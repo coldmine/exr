@@ -292,14 +292,21 @@ type blockInfo struct {
 	channels    chlist
 	width       int
 	height      int
+	pixsize     int // sum of pixel size of channels
 }
 
 func newBlockInfo(c compression, channels chlist, width int) blockInfo {
+	n := 0
+	for _, ch := range channels {
+		n += pixelSize(ch.pixelType)
+	}
+	pixsize := width * numLinesPerBlock[c] * n
 	return blockInfo{
 		compression: c,
 		channels:    channels,
 		width:       width,
 		height:      numLinesPerBlock[c],
+		pixsize:     pixsize,
 	}
 }
 

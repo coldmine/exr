@@ -2,7 +2,7 @@ package exr
 
 import (
 	"container/heap"
-	"fmt"
+	"encoding/binary"
 
 	"github.com/coldmine/exr/bit"
 )
@@ -63,9 +63,11 @@ func huffmanBuildCanonicalCodes(packs []uint64) {
 	}
 }
 
-func huffmanCountFrequencies(data []uint16) []uint64 {
-	freq := make([]uint64, HUF_ENCSIZE)
-	for _, d := range data {
+func huffmanCountFrequencies(raw []byte) []int {
+	freq := make([]int, HUF_ENCSIZE)
+	r := newByteReader(binary.LittleEndian, raw)
+	for i := 0; i < len(raw); i += 2 {
+		d := r.Uint16()
 		freq[d]++
 	}
 	return freq
@@ -73,10 +75,10 @@ func huffmanCountFrequencies(data []uint16) []uint64 {
 
 type indexHeap struct {
 	idx   []int
-	value func(d int) uint64
+	value func(d int) int
 }
 
-func newIndexHeap(idx []int, value func(d int) uint64) indexHeap {
+func newIndexHeap(idx []int, value func(d int) int) indexHeap {
 	return indexHeap{
 		idx:   idx,
 		value: value,
@@ -106,13 +108,11 @@ func (h indexHeap) Pop() interface{} {
 	return v
 }
 
-func huffmanBuildEncodingTable(freq []uint64) ([]uint64, int, int) {
+func huffmanBuildEncodingTable(freq []int) ([]uint64, int, int) {
 	// get data those frequency is non-zero.
 	data := make([]int, 0, HUF_ENCSIZE)
 	for d := 0; d < HUF_ENCSIZE; d++ {
-		// freq's index is data itself.
-		f := freq[d]
-		if f != 0 {
+		if freq[d] != 0 {
 			data = append(data, d)
 		}
 	}
@@ -141,7 +141,7 @@ func huffmanBuildEncodingTable(freq []uint64) ([]uint64, int, int) {
 	dMax := symbol
 
 	// create a index heap that can access to the frequency of data.
-	freqHeap := newIndexHeap(data, func(d int) uint64 {
+	freqHeap := newIndexHeap(data, func(d int) int {
 		return freq[d]
 	})
 	heap.Init(freqHeap)
@@ -207,15 +207,15 @@ type hdec []struct {
 
 	// lit is data for a short code. (len <= HUF_DECBITS)
 	// otherwise it's 0.
-	lit uint64
+	lit int
 
 	// lits are data for long codes. (len > HUF_DECBITS)
 	// otherwise it's nil.
-	lits []uint64
+	lits []int
 }
 
 // huffmanBuildDecodingTable returns a decoding table to decode huffman codes.
-func huffmanBuildDecodingTable(packs []uint64, dMin, dMax uint64) hdec {
+func huffmanBuildDecodingTable(packs []uint64, dMin, dMax int) hdec {
 	dec := make(hdec, HUF_DECSIZE)
 	for d := dMin; d <= dMax; d++ {
 		c := huffmanCode(packs[d])
@@ -263,7 +263,7 @@ func huffmanBuildDecodingTable(packs []uint64, dMin, dMax uint64) hdec {
 func huffmanPackEncodingTable(packs []uint64, iMin, iMax int) ([]byte, int) {
 	w := bit.NewWriter(len(packs) * 64)
 	for i := iMin; i < iMax; i++ {
-		l := huffmanCodeLength(packs[i])
+		l := huffmanCodeLength(packs[uint64(i)])
 		if l != 0 {
 			packs = append(packs, uint64(l))
 			continue
@@ -280,7 +280,7 @@ func huffmanPackEncodingTable(packs []uint64, iMin, iMax int) ([]byte, int) {
 		// 5  | 62
 		// 6+ | 63, n-6  (6 + 8 bits)
 		for i < iMax && n < (255+6) {
-			if huffmanCodeLength(packs[i]) != 0 {
+			if huffmanCodeLength(packs[uint64(i)]) != 0 {
 				break
 			}
 			i++
@@ -301,8 +301,8 @@ func huffmanPackEncodingTable(packs []uint64, iMin, iMax int) ([]byte, int) {
 // huffmanUnpackEncodingTable returns packs from the bits that contains length info.
 // Note that bits is []byte type, but grouped in 6 bits usually,
 // except when containing 6+ zeros. (6 + 8 bits)
-func huffmanUnpackEncodingTable(data []byte, nBits int, dMin, dMax uint64) []uint64 {
-	r := bit.NewReader(data, len(data)*8)
+func huffmanUnpackEncodingTable(bs []byte, dMin, dMax int) []uint64 {
+	r := bit.NewReader(bs, len(bs)*8)
 	packs := make([]uint64, HUF_ENCSIZE)
 	for d := dMin; d < dMax; d++ {
 		l := int(r.Read(6)[0])
@@ -356,79 +356,125 @@ func writeCode(w *bit.Writer, p, runp uint64, run uint8) {
 	}
 }
 
-// readCode read codes from bit.Reader r.
-func readCode(r *bit.Writer, p, runp uint64, run uint8) {
-}
-
 // huffmanEncode encodes packs to output bytes.
-func huffmanEncode(raw []uint16, packs []uint64, runCode int) ([]byte, int) {
+func huffmanEncode(raw []byte, packs []uint64, runCode int) ([]byte, int) {
+	r := newByteReader(binary.LittleEndian, raw)
 	w := bit.NewWriter(len(packs) * 8)
 	// run length encoding
 	var run uint8
-	prev := raw[0]
-	for _, c := range raw[1:] {
+	prev := r.Uint16()
+	for i := 2; i < len(raw); i += 2 {
+		c := r.Uint16()
 		if c == prev && run < 255 {
 			run++
 		} else {
-			writeCode(w, packs[prev], packs[runCode], run)
+			writeCode(w, packs[prev], packs[uint64(runCode)], run)
 			run = 0
 		}
 		prev = c
 	}
-	writeCode(w, packs[prev], packs[runCode], run)
+	writeCode(w, packs[prev], packs[uint64(runCode)], run)
 	return w.Data(), w.Index()
 }
 
 // huffmanDecode decodes packs to output bytes.
-func huffmanDecode(compressed []byte, nBits int, dec hdec) ([]uint16, int) {
-	return nil, 0
+func huffmanDecode(block blockInfo, data []byte, nBits int, dec hdec, packs []uint64, runCode int) []byte {
+	raw := make([]byte, block.pixsize)
+	w := newByteWriter(binary.LittleEndian, raw)
+	r := bit.NewReader(data, nBits)
+	c := uint64(0)
+	lc := 0
+	for {
+		// read until c is full or reader is run out of bits
+		nr := r.Remain()
+		if nr == 0 {
+			break
+		}
+		if nr > (64 - lc) {
+			nr = 64 - lc
+		}
+		nhead := nr % 8
+		if nhead != 0 {
+			nr -= nhead
+			c = (c << nhead) | uint64(r.Read(nhead)[0])
+			lc += nhead
+		}
+		bs := r.Read(nr)
+		for _, b := range bs {
+			c = (c << 8) | uint64(b)
+			lc += 8
+		}
+		// process
+		for lc >= HUF_DECBITS {
+			pl := dec[(c>>(lc-HUF_DECBITS))&HUF_DECMASK]
+			l := 0
+			if pl.len != 0 {
+				// short code
+				w.Uint16(uint16(packs[pl.lit]))
+			} else {
+				// long code
+				found := false
+				for _, d := range pl.lits {
+					l = huffmanCodeLength(packs[d])
+					if l > 64 {
+						panic("code length should not bigger than 64")
+					}
+					if l > lc {
+						break
+					}
+					code := (c >> (lc - l)) & ((1 << l) - 1)
+					if huffmanCode(packs[d]) == code {
+						found = true
+						w.Uint16(uint16(d))
+						break
+					}
+				}
+				if !found {
+					panic("long code not found")
+				}
+			}
+			c = (c << (64 - l)) >> (64 - l)
+			lc -= l
+		}
+	}
+	return raw
 }
 
 // huffmanCompress compress raw channel data.
-func huffmanCompress(raw []uint16, block blockInfo) []byte {
-	compressed := make([]byte, len(raw)*2)
-	if len(raw) == 0 {
-		return compressed
-	}
+func huffmanCompress(block blockInfo, raw []byte) []byte {
+	compressed := make([]byte, len(raw))
+	w := newByteWriter(binary.LittleEndian, compressed)
 	freqs := huffmanCountFrequencies(raw)
 	packs, dMin, dMax := huffmanBuildEncodingTable(freqs)
 	packBytes, nBitsPack := huffmanPackEncodingTable(packs, dMin, dMax)
 	runCode := dMax
-	dataBytes, nBitsData := huffmanEncode(raw, packs, runCode)
-	parse.PutUint32(compressed[0:], uint32(dMin))       // [0:4]
-	parse.PutUint32(compressed[4:], uint32(dMax))       // [4:8]
-	parse.PutUint32(compressed[8:], uint32(nBitsPack))  // [8:12]
-	parse.PutUint32(compressed[12:], uint32(nBitsData)) // [12:16]
-	// compressed[16:20] is room for future extensions
-	i := 20
+	rawBytes, nBitsData := huffmanEncode(raw, packs, runCode)
+	w.Uint32(uint32(dMin))
+	w.Uint32(uint32(dMax))
+	w.Uint32(uint32(nBitsPack))
+	w.Uint32(uint32(nBitsData))
+	w.Uint32(0) // compressed[16:20] is room for future extensions
 	for _, b := range packBytes {
-		compressed[i] = b
-		i++
+		w.Uint8(b)
 	}
-	for _, b := range dataBytes {
-		compressed[i] = b
-		i++
+	for _, b := range rawBytes {
+		w.Uint8(b)
 	}
 	return compressed
 }
 
-func huffmanDecompress(compressed []byte, block blockInfo) []uint16 {
-	dMin := uint64(parse.Uint32(compressed))
-	dMax := uint64(parse.Uint32(compressed[4:]))
-	nBitsPack := int(parse.Uint32(compressed[8:]))
-	nBitsData := int(parse.Uint32(compressed[12:]))
-	// compressed[16:20] is room for future extensions
-	i := uint64(20)
-	packs := huffmanUnpackEncodingTable(compressed[i:], nBitsPack, dMin, dMax)
-	i += dMax - dMin + 1
+func huffmanDecompress(block blockInfo, compressed []byte) []byte {
+	r := newByteReader(binary.LittleEndian, compressed)
+	dMin := int(r.Uint32())
+	dMax := int(r.Uint32())
+	nBitsPack := int(r.Uint32())
+	nBitsData := int(r.Uint32())
+	_ = r.Uint32() // compressed[16:20] is room for future extensions
+
+	packs := huffmanUnpackEncodingTable(r.Bytes((nBitsPack+7)/8), dMin, dMax)
 	dec := huffmanBuildDecodingTable(packs, dMin, dMax)
-	raw, nBits := huffmanDecode(compressed[i:], nBitsData, dec)
-	pixsize := 0
-	for _, ch := range block.channels {
-		pixsize += pixelSize(ch.pixelType)
-	}
-	bufSize := block.width * block.height * pixsize
+
+	data := r.Bytes((nBitsData + 7) / 8)
 	runCode := dMax
-	fmt.Println(nBits, bufSize, runCode)
-	return raw
+	return huffmanDecode(block, data, nBitsData, dec, packs, runCode)
 }

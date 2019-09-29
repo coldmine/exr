@@ -89,11 +89,3 @@ func reverseLutFromBitmap(b bitmap) []uint16 {
 	}
 	return lut
 }
-
-// applyLut applies lut transform to data.
-// It will change the data in place.
-func applyLut(data []uint16, lut []uint16) {
-	for i := range data {
-		data[i] = lut[data[i]]
-	}
-}

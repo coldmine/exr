@@ -1,85 +1,97 @@
 package exr
 
-// compressed data struct for piz
+import "encoding/binary"
+
+// piz compressed data structure
 //
 // [
-// 	minimum non-zero bite index of bitmap
+// 	minimum non-zero byte index of bitmap
 // 	maximum non-zero byte index of bitmap
 // 	bitmap
 // 	length of compressed data
 // 	compressed data
 // ]
 
-func pizCompress(raw []uint16, block blockInfo) []byte {
-	compressed := make([]byte, 0, len(raw))
-	// build bitmap
+func pizCompress(block blockInfo, raw []byte) []byte {
+	if len(raw)%2 != 0 {
+		panic("raw should []byte of size 2*n")
+	}
+	r := newByteReader(binary.LittleEndian, raw)
+
+	// build bitmap from raw data
 	bitm := newBitmap(1 << 16)
-	for _, d := range raw {
+	for i := 0; i < len(raw); i += 2 {
+		d := r.Uint16()
 		bitm.Set(d)
 	}
 	bitm.Unset(0) // don't include zero in bitmap
-	minNonZero := bitm.MinByteIndex()
-	maxNonZero := bitm.MaxByteIndex()
-	parse.PutUint32(compressed[0:], uint32(minNonZero))
-	parse.PutUint32(compressed[4:], uint32(maxNonZero))
-	i := 8
-	for _, d := range bitm[minNonZero : maxNonZero+1] {
-		compressed[i] = d
-		i++
+
+	// apply forward lut to raw data
+	r = newByteReader(binary.LittleEndian, raw)
+	w := newByteWriter(binary.LittleEndian, raw)
+	lut := forwardLutFromBitmap(bitm)
+	for i := 0; i < len(raw); i += 2 {
+		d := r.Uint16()
+		w.Uint16(lut[d])
 	}
-	// wavlet encoding
-	chData := make(map[string][]uint16)
+
+	// wavlet encoding per channel
 	var n, m int
 	for _, ch := range block.channels {
 		m += block.width * block.height * pixelSize(ch.pixelType)
-		chData[ch.name] = raw[n:m]
+		_ = n // avoid n declared and not used error, temporarily
+		// TODO: applyWaveletEncode(raw[n:m], maxValue)
 		n = m
-		// TODO: ySampling
 	}
-	// apply forward lut
-	lut := forwardLutFromBitmap(bitm)
-	applyLut(raw, lut)
-	// wavelet encoding
-	for range block.channels {
-		// TODO: applyWaveletEncode(chData[ch.name], maxValue)
-	}
-	// compress
-	cdata := huffmanCompress(raw, block)
-	parse.PutUint32(compressed[i:], uint32(len(compressed)))
-	i += 4
+
+	// write
+	compressed := make([]byte, len(raw)+12)
+	w = newByteWriter(binary.LittleEndian, compressed)
+
+	minNonZero := bitm.MinByteIndex()
+	maxNonZero := bitm.MaxByteIndex()
+	w.Uint32(uint32(minNonZero))
+	w.Uint32(uint32(maxNonZero))
+	w.Bytes(bitm[minNonZero : maxNonZero+1])
+
+	cdata := huffmanCompress(block, raw)
+	w.Uint32(uint32(len(cdata)))
 	for _, d := range cdata {
-		compressed[i] = d
-		i++
+		w.Uint8(d)
 	}
 	return compressed
 }
 
-func pizDecompress(compressed []byte, block blockInfo) []uint16 {
+func pizDecompress(block blockInfo, compressed []byte) []byte {
+	r := newByteReader(binary.LittleEndian, compressed)
+
 	// get bitmap info
-	minNonZero := parse.Uint32(compressed[0:])
-	maxNonZero := parse.Uint32(compressed[4:])
+	minNonZero := int(r.Uint32())
+	maxNonZero := int(r.Uint32())
 	bitm := newBitmap(1 << 16)
-	copy(bitm[minNonZero:maxNonZero+1], compressed[8:])
-	i := 8 + (maxNonZero - minNonZero + 1)
+	copy(bitm[minNonZero:maxNonZero+1], r.Bytes(maxNonZero-minNonZero+1))
+
 	// decompress
-	lc := parse.Uint32(compressed[i:])
-	i += 4
-	cdata := compressed[i : i+lc]
-	raw := huffmanDecompress(cdata, block)
+	lc := int(r.Uint32())
+	cdata := r.Bytes(lc)
+	raw := huffmanDecompress(block, cdata)
+
 	// wavlet decode each channel
-	chData := make(map[string][]uint16)
 	var n, m int
 	for _, ch := range block.channels {
 		m += block.width * block.height * pixelSize(ch.pixelType)
-		chData[ch.name] = raw[n:m]
+		_ = n // avoid n declared and not used error, temporarily
+		// TODO: applyWaveletDecode(raw[n:m], maxValue)
 		n = m
-		// TODO: ySampling
 	}
-	for range block.channels {
-		// TODO: applyWaveletDecode(chData[ch.name], maxValue)
-	}
+
 	// apply reverse lut
-	lut := reverseLutFromBitmap(bitm)
-	applyLut(raw, lut)
+	r = newByteReader(binary.LittleEndian, raw)
+	w := newByteWriter(binary.LittleEndian, raw)
+	rlut := reverseLutFromBitmap(bitm)
+	for i := 0; i < len(raw); i += 2 {
+		d := r.Uint16()
+		w.Uint16(rlut[d])
+	}
 	return raw
 }
