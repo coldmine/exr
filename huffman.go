@@ -57,8 +57,8 @@ func huffmanBuildCanonicalCodes(packs []uint64) {
 	for i := range packs {
 		l := packs[i]
 		if l > 0 {
-			packs[i] = l | (startCode[i] << 6)
-			startCode[i]++
+			packs[i] = (startCode[l] << 6) | l
+			startCode[l]++
 		}
 	}
 }
@@ -227,31 +227,28 @@ func huffmanBuildDecodingTable(packs []uint64, dMin, dMax int) hdec {
 			continue
 		} else if l <= HUF_DECBITS {
 			// short code
-			ci := c << (HUF_DECBITS - l)
-			pl := dec[ci]
+			i := c << (HUF_DECBITS - l)
 			// fill all indice that are having the same heading bits.
-			i := uint64(1) << (HUF_DECBITS - l)
-			for i > 0 {
-				if pl.len != 0 {
+			n := uint64(1) << (HUF_DECBITS - l)
+			for n > 0 {
+				if dec[i].len != 0 {
 					panic("already been stored")
 				}
-				if len(pl.lits) != 0 {
+				if len(dec[i].lits) != 0 {
 					panic("already occupied by long code")
 				}
-				pl.len = l
-				pl.lit = d
-				ci++
-				pl = dec[ci]
-				i--
+				dec[i].len = l
+				dec[i].lit = d
+				i++
+				n--
 			}
 		} else {
 			// long code
-			ci := c >> (l - HUF_DECBITS)
-			pl := dec[ci]
-			if pl.len != 0 {
+			i := c >> (l - HUF_DECBITS)
+			if dec[i].len != 0 {
 				panic("already occupied by short code")
 			}
-			pl.lits = append(pl.lits, d)
+			dec[i].lits = append(dec[i].lits, d)
 		}
 	}
 	return dec
@@ -304,8 +301,8 @@ func huffmanPackEncodingTable(packs []uint64, iMin, iMax int) ([]byte, int) {
 func huffmanUnpackEncodingTable(bs []byte, dMin, dMax int) []uint64 {
 	r := bit.NewReader(bs, len(bs)*8)
 	packs := make([]uint64, HUF_ENCSIZE)
-	for d := dMin; d < dMax; d++ {
-		l := int(r.Read(6)[0])
+	for d := dMin; d <= dMax; d++ {
+		l := int(r.Read(6)[0] >> 2)
 		packs[d] = uint64(l)
 		// decompress continuous zeros
 		// n  | huffman code length
@@ -326,6 +323,7 @@ func huffmanUnpackEncodingTable(bs []byte, dMin, dMax int) []uint64 {
 			for n != 0 {
 				packs[d] = 0
 				d++
+				n--
 			}
 			d--
 		}
@@ -384,6 +382,7 @@ func huffmanDecode(block blockInfo, data []byte, nBits int, dec hdec, packs []ui
 	r := bit.NewReader(data, nBits)
 	c := uint64(0)
 	lc := 0
+READ:
 	for {
 		// read until c is full or reader is run out of bits
 		nr := r.Remain()
@@ -396,7 +395,7 @@ func huffmanDecode(block blockInfo, data []byte, nBits int, dec hdec, packs []ui
 		nhead := nr % 8
 		if nhead != 0 {
 			nr -= nhead
-			c = (c << nhead) | uint64(r.Read(nhead)[0])
+			c = (c << nhead) | uint64(r.Read(nhead)[0]>>(8-nhead))
 			lc += nhead
 		}
 		bs := r.Read(nr)
@@ -420,7 +419,7 @@ func huffmanDecode(block blockInfo, data []byte, nBits int, dec hdec, packs []ui
 						panic("code length should not bigger than 64")
 					}
 					if l > lc {
-						break
+						continue READ
 					}
 					code := (c >> (lc - l)) & ((1 << l) - 1)
 					if huffmanCode(packs[d]) == code {
@@ -436,6 +435,9 @@ func huffmanDecode(block blockInfo, data []byte, nBits int, dec hdec, packs []ui
 			c = (c << (64 - l)) >> (64 - l)
 			lc -= l
 		}
+	}
+	if lc != 0 {
+		// TODO: handle it?
 	}
 	return raw
 }
@@ -467,11 +469,12 @@ func huffmanDecompress(block blockInfo, compressed []byte) []byte {
 	r := newByteReader(binary.LittleEndian, compressed)
 	dMin := int(r.Uint32())
 	dMax := int(r.Uint32())
-	nBitsPack := int(r.Uint32())
+	_ = int(r.Uint32()) // tableLength
 	nBitsData := int(r.Uint32())
 	_ = r.Uint32() // compressed[16:20] is room for future extensions
 
-	packs := huffmanUnpackEncodingTable(r.Bytes((nBitsPack+7)/8), dMin, dMax)
+	packs := huffmanUnpackEncodingTable(compressed[20:], dMin, dMax)
+	// TODO: r must shifted as much huffmanUnpackEncodingTable reads
 	dec := huffmanBuildDecodingTable(packs, dMin, dMax)
 
 	data := r.Bytes((nBitsData + 7) / 8)

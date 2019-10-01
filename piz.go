@@ -1,6 +1,8 @@
 package exr
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 // piz compressed data structure
 //
@@ -66,8 +68,8 @@ func pizDecompress(block blockInfo, compressed []byte) []byte {
 	r := newByteReader(binary.LittleEndian, compressed)
 
 	// get bitmap info
-	minNonZero := int(r.Uint32())
-	maxNonZero := int(r.Uint32())
+	minNonZero := int(r.Uint16())
+	maxNonZero := int(r.Uint16())
 	bitm := newBitmap(1 << 16)
 	copy(bitm[minNonZero:maxNonZero+1], r.Bytes(maxNonZero-minNonZero+1))
 

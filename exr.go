@@ -245,7 +245,7 @@ func Decode(path string) (image.Image, error) {
 	}
 	fmt.Println(offsets)
 
-	for _, o := range offsets {
+	for i, o := range offsets {
 		f, err := os.Open(path)
 		if err != nil {
 			return nil, err
@@ -259,28 +259,32 @@ func Decode(path string) (image.Image, error) {
 		if err != nil {
 			log.Fatal("read offset failed")
 		}
-		y := parse.Uint32(n)
+		y := int(parse.Uint32(n)) // y offset
 		n, err = read(r, 4)
 		if err != nil {
 			log.Fatal("read offset failed")
 		}
 		size := int(parse.Uint32(n))
+		if i != len(offsets)-1 {
+			got := uint64(int(o) + 8 + size)
+			if got != offsets[i+1] {
+				fmt.Printf("%v + 8 + %v: got %v, want %v\n", o, size, int(o)+8+size, offsets[i+1])
+			}
+		}
 		compressed, err := read(r, size)
 		if err != nil {
 			log.Fatal("read compressed data failed")
 		}
 		width := int(dataWindow.xMax - dataWindow.xMin + 1)
-		b := newBlockInfo(compressionMethod, channels, width)
-		raw := decompress(compressed, b)
-		fmt.Println(y, size, channels, len(raw))
+		block := newBlockInfo(compressionMethod, channels, y, width)
+		_ = decompress(block, compressed)
 	}
 	return nil, nil
 }
 
-func decompress(compressed []byte, block blockInfo) []uint16 {
+func decompress(block blockInfo, compressed []byte) []byte {
 	if block.compression == PIZ_COMPRESSION {
-		return nil
-		// return pizDecompress(compressed, block)
+		return pizDecompress(block, compressed)
 	}
 	log.Fatalf("decompress of %d not supported yet", block.compression)
 	return nil
@@ -290,12 +294,13 @@ func decompress(compressed []byte, block blockInfo) []uint16 {
 type blockInfo struct {
 	compression compression
 	channels    chlist
+	y           int
 	width       int
 	height      int
 	pixsize     int // sum of pixel size of channels
 }
 
-func newBlockInfo(c compression, channels chlist, width int) blockInfo {
+func newBlockInfo(c compression, channels chlist, y, width int) blockInfo {
 	n := 0
 	for _, ch := range channels {
 		n += pixelSize(ch.pixelType)
