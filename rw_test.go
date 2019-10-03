@@ -1,12 +1,12 @@
-package bit
+package exr
 
 import (
 	"reflect"
 	"testing"
 )
 
-func TestReader(t *testing.T) {
-	r := NewReader([]byte{
+func TestBitReader(t *testing.T) {
+	r := newBitReader([]byte{
 		0b00000000,
 		0b11111111,
 		0b00001111,
@@ -75,7 +75,7 @@ type bitSlice struct {
 	b []byte
 }
 
-func TestWriter(t *testing.T) {
+func TestBitWriter(t *testing.T) {
 	cases := []struct {
 		bits []bitSlice
 		want []byte
@@ -133,7 +133,7 @@ func TestWriter(t *testing.T) {
 		},
 	}
 	for i, c := range cases {
-		w := NewWriter(40, make([]byte, 5))
+		w := newBitWriter(40)
 		for _, b := range c.bits {
 			w.Write(b.n, b.b)
 		}

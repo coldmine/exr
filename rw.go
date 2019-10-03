@@ -1,17 +1,101 @@
-package bit
+package exr
 
 import (
+	"encoding/binary"
 	"fmt"
 )
 
-type Reader struct {
+func newByteReader(ord binary.ByteOrder, data []byte) *byteReader {
+	return &byteReader{
+		ord:  ord,
+		data: data,
+		i:    0,
+	}
+}
+
+func (w *byteReader) Uint8() uint8 {
+	v := w.data[w.i]
+	w.i++
+	return v
+}
+
+func (w *byteReader) Uint16() uint16 {
+	v := w.ord.Uint16(w.data[w.i:])
+	w.i += 2
+	return v
+}
+
+func (w *byteReader) Uint32() uint32 {
+	v := w.ord.Uint32(w.data[w.i:])
+	w.i += 4
+	return v
+}
+
+func (w *byteReader) Uint64() uint64 {
+	v := w.ord.Uint64(w.data[w.i:])
+	w.i += 8
+	return v
+}
+
+func (w *byteReader) Bytes(n int) []byte {
+	v := w.data[w.i : w.i+n]
+	w.i += n
+	return v
+}
+
+type byteWriter struct {
+	ord  binary.ByteOrder
+	data []byte
+	i    int
+}
+
+func newByteWriter(ord binary.ByteOrder, data []byte) *byteWriter {
+	return &byteWriter{
+		ord:  ord,
+		data: data,
+		i:    0,
+	}
+}
+
+func (w *byteWriter) Uint8(v uint8) {
+	w.data[w.i] = v
+	w.i++
+}
+
+func (w *byteWriter) Uint16(v uint16) {
+	w.ord.PutUint16(w.data[w.i:], v)
+	w.i += 2
+}
+
+func (w *byteWriter) Uint32(v uint32) {
+	w.ord.PutUint32(w.data[w.i:], v)
+	w.i += 4
+}
+
+func (w *byteWriter) Uint64(v uint64) {
+	w.ord.PutUint64(w.data[w.i:], v)
+	w.i += 8
+}
+
+func (w *byteWriter) Bytes(bs []byte) {
+	copy(w.data[w.i:w.i+len(bs)], bs)
+	w.i += len(bs)
+}
+
+type byteReader struct {
+	ord  binary.ByteOrder
+	data []byte
+	i    int
+}
+
+type bitReader struct {
 	data []byte
 	i    int // current bit index
 	n    int // number of bits in data
 }
 
-func NewReader(data []byte, n int) *Reader {
-	return &Reader{
+func newBitReader(data []byte, n int) *bitReader {
+	return &bitReader{
 		data: data,
 		i:    0,
 		n:    n,
@@ -28,7 +112,7 @@ func NewReader(data []byte, n int) *Reader {
 // bytes for n bits with unreadable bits are filled with 0.
 //
 // Reader's Remain function can be used to validate returned data.
-func (r *Reader) Read(n int) []byte {
+func (r *bitReader) Read(n int) []byte {
 	if n < 0 {
 		panic(fmt.Sprintf("invalid number of bits to read: %d", n))
 	}
@@ -76,31 +160,31 @@ func (r *Reader) Read(n int) []byte {
 	return out
 }
 
-func (r *Reader) Seek(to int) {
+func (r *bitReader) Seek(to int) {
 	r.i = to
 }
 
 // Remain returns number of remaining bits in the reader.
 // If it reads more than it have, it will return a negative number.
-func (r *Reader) Remain() int {
+func (r *bitReader) Remain() int {
 	return r.n - r.i
 }
 
 // Writer is bit writer.
-type Writer struct {
+type bitWriter struct {
 	data []byte
 	i    int
 	n    int
 }
 
 // NewWriter returns a new Writer.
-func NewWriter(n int) *Writer {
+func newBitWriter(n int) *bitWriter {
 	nbyte := n / 8
 	if n%8 != 0 {
 		nbyte++
 	}
 	data := make([]byte, nbyte)
-	return &Writer{
+	return &bitWriter{
 		data: data,
 		i:    0,
 		n:    n,
@@ -117,7 +201,7 @@ func NewWriter(n int) *Writer {
 //
 // Writer's Remain function can be used to check number of bits are remaining
 // in the writer's data buffer.
-func (w *Writer) Write(n int, bs []byte) {
+func (w *bitWriter) Write(n int, bs []byte) {
 	if n == 0 {
 		return
 	}
@@ -155,16 +239,16 @@ func (w *Writer) Write(n int, bs []byte) {
 }
 
 // Data returns the writer's data written so far.
-func (w *Writer) Data() []byte {
+func (w *bitWriter) Data() []byte {
 	return w.data
 }
 
 // Index returns current cursor index of writer.
-func (w *Writer) Index() int {
+func (w *bitWriter) Index() int {
 	return w.i
 }
 
 // Remain returns number of remaining bits in the writer.
-func (w *Writer) Remain() int {
+func (w *bitWriter) Remain() int {
 	return w.n - w.i
 }

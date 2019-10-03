@@ -3,8 +3,6 @@ package exr
 import (
 	"container/heap"
 	"encoding/binary"
-
-	"github.com/coldmine/exr/bit"
 )
 
 const (
@@ -258,7 +256,7 @@ func huffmanBuildDecodingTable(packs []uint64, dMin, dMax int) hdec {
 // Note that bits is []byte type, but grouped in 6 bits usually,
 // except when containing 6+ zeros. (6 + 8 bits)
 func huffmanPackEncodingTable(packs []uint64, iMin, iMax int) ([]byte, int) {
-	w := bit.NewWriter(len(packs) * 64)
+	w := newBitWriter(len(packs) * 64)
 	for i := iMin; i < iMax; i++ {
 		l := huffmanCodeLength(packs[uint64(i)])
 		if l != 0 {
@@ -299,7 +297,7 @@ func huffmanPackEncodingTable(packs []uint64, iMin, iMax int) ([]byte, int) {
 // Note that bits is []byte type, but grouped in 6 bits usually,
 // except when containing 6+ zeros. (6 + 8 bits)
 func huffmanUnpackEncodingTable(bs []byte, dMin, dMax int) []uint64 {
-	r := bit.NewReader(bs, len(bs)*8)
+	r := newBitReader(bs, len(bs)*8)
 	packs := make([]uint64, HUF_ENCSIZE)
 	for d := dMin; d <= dMax; d++ {
 		l := int(r.Read(6)[0] >> 2)
@@ -338,9 +336,9 @@ func uint64ToBytes(n uint64) []byte {
 	return bs
 }
 
-// writeCode writes codes to bit.Writer w.
+// writeCode writes codes to bitWriter w.
 // It uses run length encoding when they are shorter than normal encoding.
-func writeCode(w *bit.Writer, p, runp uint64, run uint8) {
+func writeCode(w *bitWriter, p, runp uint64, run uint8) {
 	n := huffmanCodeLength(p) * int(run)
 	nrun := huffmanCodeLength(p) + huffmanCodeLength(runp) + 8
 	if nrun < n {
@@ -357,7 +355,7 @@ func writeCode(w *bit.Writer, p, runp uint64, run uint8) {
 // huffmanEncode encodes packs to output bytes.
 func huffmanEncode(raw []byte, packs []uint64, runCode int) ([]byte, int) {
 	r := newByteReader(binary.LittleEndian, raw)
-	w := bit.NewWriter(len(packs) * 8)
+	w := newBitWriter(len(packs) * 8)
 	// run length encoding
 	var run uint8
 	prev := r.Uint16()
@@ -379,7 +377,7 @@ func huffmanEncode(raw []byte, packs []uint64, runCode int) ([]byte, int) {
 func huffmanDecode(block blockInfo, data []byte, nBits int, dec hdec, packs []uint64, runCode int) []byte {
 	raw := make([]byte, block.pixsize)
 	w := newByteWriter(binary.LittleEndian, raw)
-	r := bit.NewReader(data, nBits)
+	r := newBitReader(data, nBits)
 	c := uint64(0)
 	lc := 0
 READ:
