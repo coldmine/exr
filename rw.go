@@ -13,33 +13,33 @@ func newByteReader(ord binary.ByteOrder, data []byte) *byteReader {
 	}
 }
 
-func (w *byteReader) Uint8() uint8 {
-	v := w.data[w.i]
-	w.i++
+func (r *byteReader) Uint8() uint8 {
+	v := r.data[r.i]
+	r.i++
 	return v
 }
 
-func (w *byteReader) Uint16() uint16 {
-	v := w.ord.Uint16(w.data[w.i:])
-	w.i += 2
+func (r *byteReader) Uint16() uint16 {
+	v := r.ord.Uint16(r.data[r.i:])
+	r.i += 2
 	return v
 }
 
-func (w *byteReader) Uint32() uint32 {
-	v := w.ord.Uint32(w.data[w.i:])
-	w.i += 4
+func (r *byteReader) Uint32() uint32 {
+	v := r.ord.Uint32(r.data[r.i:])
+	r.i += 4
 	return v
 }
 
-func (w *byteReader) Uint64() uint64 {
-	v := w.ord.Uint64(w.data[w.i:])
-	w.i += 8
+func (r *byteReader) Uint64() uint64 {
+	v := r.ord.Uint64(r.data[r.i:])
+	r.i += 8
 	return v
 }
 
-func (w *byteReader) Bytes(n int) []byte {
-	v := w.data[w.i : w.i+n]
-	w.i += n
+func (r *byteReader) Bytes(n int) []byte {
+	v := r.data[r.i : r.i+n]
+	r.i += n
 	return v
 }
 
