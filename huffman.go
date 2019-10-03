@@ -296,8 +296,7 @@ func huffmanPackEncodingTable(packs []uint64, iMin, iMax int) ([]byte, int) {
 // huffmanUnpackEncodingTable returns packs from the bits that contains length info.
 // Note that bits is []byte type, but grouped in 6 bits usually,
 // except when containing 6+ zeros. (6 + 8 bits)
-func huffmanUnpackEncodingTable(bs []byte, dMin, dMax int) []uint64 {
-	r := newBitReader(bs, len(bs)*8)
+func huffmanUnpackEncodingTable(r *bitReader, dMin, dMax int) []uint64 {
 	packs := make([]uint64, HUF_ENCSIZE)
 	for d := dMin; d <= dMax; d++ {
 		l := int(r.Read(6)[0] >> 2)
@@ -471,8 +470,10 @@ func huffmanDecompress(block blockInfo, compressed []byte) []byte {
 	nBitsData := int(r.Uint32())
 	_ = r.Uint32() // compressed[16:20] is room for future extensions
 
-	packs := huffmanUnpackEncodingTable(compressed[20:], dMin, dMax)
-	// TODO: r must shifted as much huffmanUnpackEncodingTable reads
+	br := r.ToBitReader()
+	packs := huffmanUnpackEncodingTable(br, dMin, dMax)
+	r = br.ToByteReader(binary.LittleEndian)
+
 	dec := huffmanBuildDecodingTable(packs, dMin, dMax)
 
 	data := r.Bytes((nBitsData + 7) / 8)
