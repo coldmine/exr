@@ -1,6 +1,7 @@
 package exr
 
 import (
+	"encoding/binary"
 	"reflect"
 	"testing"
 )
@@ -145,5 +146,24 @@ func TestBitWriter(t *testing.T) {
 		if !reflect.DeepEqual(got, c.want) {
 			t.Fatalf("got[%d] %v, want %v", i, got, c.want)
 		}
+	}
+}
+
+func TestBitByteConversionPreserveOriginal(t *testing.T) {
+	data := []byte{1, 0, 2, 0, 3, 0, 4, 0, 5, 0}
+	r := newByteReader(binary.LittleEndian, data)
+	_ = r.Uint16()
+	br := r.ToBitReader()
+	gotr := br.ToByteReader(r.ord)
+	if !reflect.DeepEqual(gotr, r) {
+		t.Fatalf("conversion expected to preserve original reader, it didn't")
+	}
+
+	w := newByteWriter(binary.LittleEndian, make([]byte, 10))
+	w.Uint16(1)
+	bw := w.ToBitWriter()
+	gotw := bw.ToByteWriter(w.ord)
+	if !reflect.DeepEqual(gotw, w) {
+		t.Fatalf("conversion expected to preserve original writer, it didn't")
 	}
 }

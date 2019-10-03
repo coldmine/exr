@@ -43,6 +43,15 @@ func (w *byteReader) Bytes(n int) []byte {
 	return v
 }
 
+// ToBitReader returns a bitReader from byteReader r.
+func (r *byteReader) ToBitReader() *bitReader {
+	return &bitReader{
+		data: r.data,
+		i:    r.i * 8,
+		n:    len(r.data) * 8,
+	}
+}
+
 type byteWriter struct {
 	ord  binary.ByteOrder
 	data []byte
@@ -80,6 +89,15 @@ func (w *byteWriter) Uint64(v uint64) {
 func (w *byteWriter) Bytes(bs []byte) {
 	copy(w.data[w.i:w.i+len(bs)], bs)
 	w.i += len(bs)
+}
+
+// ToBitWriter returns a bitWriter from byteWriter r.
+func (w *byteWriter) ToBitWriter() *bitWriter {
+	return &bitWriter{
+		data: w.data,
+		i:    w.i * 8,
+		n:    len(w.data) * 8,
+	}
 }
 
 type byteReader struct {
@@ -170,6 +188,17 @@ func (r *bitReader) Remain() int {
 	return r.n - r.i
 }
 
+// ToByteReader returns a byteReader from bitReader r.
+// Note: cursor index that isn't multiple of 8 will be converted
+// to it's nearest upper byte index.
+func (r *bitReader) ToByteReader(ord binary.ByteOrder) *byteReader {
+	return &byteReader{
+		ord:  ord,
+		data: r.data,
+		i:    (r.i + 7) / 8,
+	}
+}
+
 // Writer is bit writer.
 type bitWriter struct {
 	data []byte
@@ -251,4 +280,15 @@ func (w *bitWriter) Index() int {
 // Remain returns number of remaining bits in the writer.
 func (w *bitWriter) Remain() int {
 	return w.n - w.i
+}
+
+// ToByteWriter returns a byteWriter from bitWriter r.
+// Note: cursor index that isn't multiple of 8 will be converted
+// to it's nearest upper byte index.
+func (w *bitWriter) ToByteWriter(ord binary.ByteOrder) *byteWriter {
+	return &byteWriter{
+		ord:  ord,
+		data: w.data,
+		i:    (w.i + 7) / 8, // skip unread bits in current byte
+	}
 }
