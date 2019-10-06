@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image"
+	"image/color"
+	"image/png"
 	"log"
 	"math"
 	"os"
@@ -245,6 +247,7 @@ func Decode(path string) (image.Image, error) {
 	}
 	fmt.Println(offsets)
 
+	rgba := image.NewRGBA64(image.Rect(int(dataWindow.xMin), int(dataWindow.yMin), int(dataWindow.xMax), int(dataWindow.yMax)))
 	for i, o := range offsets {
 		f, err := os.Open(path)
 		if err != nil {
@@ -259,7 +262,7 @@ func Decode(path string) (image.Image, error) {
 		if err != nil {
 			log.Fatal("read offset failed")
 		}
-		y := int(parse.Uint32(n)) // y offset
+		yoffset := int(parse.Uint32(n)) // y offset
 		n, err = read(r, 4)
 		if err != nil {
 			log.Fatal("read offset failed")
@@ -276,9 +279,43 @@ func Decode(path string) (image.Image, error) {
 			log.Fatal("read compressed data failed")
 		}
 		width := int(dataWindow.xMax - dataWindow.xMin + 1)
-		block := newBlockInfo(compressionMethod, channels, y, width)
-		_ = decompress(block, compressed)
+		block := newBlockInfo(compressionMethod, channels, yoffset, width)
+		raw := decompress(block, compressed)
+
+		var c color.RGBA64
+		for _, ch := range block.channels {
+			s := pixelSize(ch.pixelType)
+			for y := yoffset; y < yoffset+block.height; y++ {
+				for x := 0; x < block.width; x++ {
+					b := raw[:s]
+					raw = raw[s:]
+					switch ch.name {
+					case "R":
+						c = rgba.RGBA64At(x, y)
+						c.R = parse.Uint16(b) * 255
+						rgba.SetRGBA64(x, y, c)
+					case "G":
+						c = rgba.RGBA64At(x, y)
+						c.G = parse.Uint16(b) * 255
+						rgba.SetRGBA64(x, y, c)
+					case "B":
+						c = rgba.RGBA64At(x, y)
+						c.B = parse.Uint16(b) * 255
+						rgba.SetRGBA64(x, y, c)
+					case "A":
+						c = rgba.RGBA64At(x, y)
+						c.A = parse.Uint16(b) * 255
+						rgba.SetRGBA64(x, y, c)
+					}
+				}
+			}
+		}
 	}
+	out, err := os.Create("test.png")
+	if err != nil {
+		log.Fatal("unable to open test.png")
+	}
+	png.Encode(out, rgba)
 	return nil, nil
 }
 
