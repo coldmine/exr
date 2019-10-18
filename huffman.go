@@ -374,7 +374,7 @@ func huffmanEncode(raw []byte, packs []uint64, runCode int) ([]byte, int) {
 
 // huffmanDecode decodes packs to output bytes.
 func huffmanDecode(block blockInfo, data []byte, nBits int, dec hdec, packs []uint64, runCode int) []byte {
-	raw := make([]byte, block.pixsize)
+	raw := make([]byte, block.width*block.height*block.pixsize)
 	w := newByteWriter(binary.LittleEndian, raw)
 	r := newBitReader(data, nBits)
 	c := uint64(0)
