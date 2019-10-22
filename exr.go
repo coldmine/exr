@@ -287,24 +287,21 @@ func Decode(path string) (image.Image, error) {
 			s := pixelSize(ch.pixelType)
 			for y := yoffset; y < yoffset+block.height; y++ {
 				for x := 0; x < block.width; x++ {
-					b := raw[:s]
+					c = rgba.RGBA64At(x, y)
+					v := parse.Uint16(raw[:s]) * 8 * 8
 					raw = raw[s:]
 					switch ch.name {
 					case "R":
-						c = rgba.RGBA64At(x, y)
-						c.R = parse.Uint16(b) * 255
+						c.R = v
 						rgba.SetRGBA64(x, y, c)
 					case "G":
-						c = rgba.RGBA64At(x, y)
-						c.G = parse.Uint16(b) * 255
+						c.G = v
 						rgba.SetRGBA64(x, y, c)
 					case "B":
-						c = rgba.RGBA64At(x, y)
-						c.B = parse.Uint16(b) * 255
+						c.B = v
 						rgba.SetRGBA64(x, y, c)
 					case "A":
-						c = rgba.RGBA64At(x, y)
-						c.A = parse.Uint16(b) * 255
+						c.A = v
 						rgba.SetRGBA64(x, y, c)
 					}
 				}
