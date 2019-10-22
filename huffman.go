@@ -123,21 +123,19 @@ func huffmanBuildEncodingTable(freq []int) ([]uint64, int, int) {
 	// if the links reached the end, say z, hlink[z] == z
 	hlink := make([]int, HUF_ENCSIZE)
 	for _, d := range data {
-		f := freq[d]
-		if f != 0 {
+		if freq[d] != 0 {
 			hlink[d] = d
 		}
 	}
 
 	// add a pseudo symbol for run-length encoding.
-	// TODO: what does this do?
 	symbol := data[len(data)-1] + 1
 	freq[symbol] = 1
 	data = append(data, symbol)
 
 	// get min and max data before they are mixed by heap.
 	dMin := data[0]
-	dMax := symbol
+	dMax := data[len(data)-1] // == symbol
 
 	// create a index heap that can access to the frequency of data.
 	freqHeap := newIndexHeap(data, func(d int) int {
@@ -149,8 +147,8 @@ func huffmanBuildEncodingTable(freq []int) ([]uint64, int, int) {
 	packs := make([]uint64, HUF_ENCSIZE)
 	n := len(data)
 	for n > 1 {
-		// pop two least seen data, merge, push it back.
 		n--
+		// pop two least seen data, merge, push it back.
 		a := heap.Pop(freqHeap).(int)
 		b := heap.Pop(freqHeap).(int)
 		fsum := freq[a] + freq[b]
