@@ -220,9 +220,14 @@ func huffmanBuildDecodingTable(packs []uint64, dMin, dMax int) hdec {
 		if c>>l != 0 {
 			panic("code didn't match to it's length")
 		}
-		if l == 0 {
-			continue
-		} else if l <= HUF_DECBITS {
+		if l > HUF_DECBITS {
+			// long code
+			i := c >> (l - HUF_DECBITS)
+			if dec[i].len != 0 {
+				panic("already occupied by short code")
+			}
+			dec[i].lits = append(dec[i].lits, d)
+		} else if l != 0 {
 			// short code
 			i := c << (HUF_DECBITS - l)
 			// fill all indice that are having the same heading bits.
@@ -239,13 +244,6 @@ func huffmanBuildDecodingTable(packs []uint64, dMin, dMax int) hdec {
 				i++
 				n--
 			}
-		} else {
-			// long code
-			i := c >> (l - HUF_DECBITS)
-			if dec[i].len != 0 {
-				panic("already occupied by short code")
-			}
-			dec[i].lits = append(dec[i].lits, d)
 		}
 	}
 	return dec
