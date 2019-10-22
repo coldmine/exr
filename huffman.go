@@ -34,28 +34,29 @@ func huffmanCodeLength(pack uint64) int {
 // packs should only having the length parts (lower 6 bits) when given.
 // It will assign their codes using the lengths.
 func huffmanBuildCanonicalCodes(packs []uint64) {
-	// length of packs shold be HUF_ENCSIZE
-	if len(packs) != HUF_ENCSIZE {
-		panic("length of packs are not HUF_ENCSIZE")
-	}
 	// check how many codes are exist in each length.
 	freq := make([]uint64, 59)
 	for i := range packs {
 		l := packs[i]
-		freq[l] += 1
+		freq[l]++
 	}
-	c := uint64(0)
+
 	// calculate start code of each length.
 	startCode := make([]uint64, 59)
+	c := uint64(0)
 	for i := 58; i > 0; i-- {
 		startCode[i] = c
 		c = (c + freq[i]) >> 1
 	}
+
 	// assign codes to packs
 	for i := range packs {
-		l := packs[i]
+		l := int(packs[i])
+		if l >= 1<<6 {
+			panic("length should not bigger or equal than 1 << 6")
+		}
 		if l > 0 {
-			packs[i] = (startCode[l] << 6) | l
+			packs[i] = (startCode[l] << 6) | uint64(l)
 			startCode[l]++
 		}
 	}
