@@ -88,12 +88,12 @@ func pizDecompress(block blockInfo, compressed []byte) []byte {
 	}
 
 	// apply reverse lut
+	lut := reverseLutFromBitmap(bitm)
 	r = newByteReader(binary.LittleEndian, raw)
 	w := newByteWriter(binary.LittleEndian, raw)
-	rlut := reverseLutFromBitmap(bitm)
 	for i := 0; i < len(raw); i += 2 {
 		d := r.Uint16()
-		w.Uint16(rlut[d])
+		w.Uint16(lut[d])
 	}
 	return raw
 }
