@@ -43,6 +43,10 @@ func (r *byteReader) Bytes(n int) []byte {
 	return v
 }
 
+func (r *byteReader) Remain() int {
+	return len(r.data) - r.i
+}
+
 // ToBitReader returns a bitReader from byteReader r.
 func (r *byteReader) ToBitReader() *bitReader {
 	return &bitReader{
@@ -89,6 +93,11 @@ func (w *byteWriter) Uint64(v uint64) {
 func (w *byteWriter) Bytes(bs []byte) {
 	copy(w.data[w.i:w.i+len(bs)], bs)
 	w.i += len(bs)
+}
+
+// Remain returns number of remaining bits in the writer.
+func (w *byteWriter) Remain() int {
+	return len(w.data) - w.i
 }
 
 // ToBitWriter returns a bitWriter from byteWriter r.

@@ -83,9 +83,10 @@ func pizDecompress(block blockInfo, compressed []byte) []byte {
 	for _, ch := range block.channels {
 		pixsize := pixelSize(ch.pixelType)
 		m += block.width * block.height * pixsize
-		wav2Decode(raw[n:m], block.width, block.pixsize, block.height, block.width*pixsize, maxNonZero)
+		// wav2Decode(raw[n:m], block.width, block.pixsize, block.height, block.width*pixsize, maxNonZero)
 		n = m
 	}
+	_ = n
 
 	// apply reverse lut
 	lut := reverseLutFromBitmap(bitm)

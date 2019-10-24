@@ -3,6 +3,7 @@ package exr
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"log"
 	"math"
 )
@@ -92,6 +93,10 @@ type channel struct {
 	pLinear   uint8
 	xSampling int32
 	ySampling int32
+}
+
+func (ch channel) String() string {
+	return fmt.Sprintf("{%s %s %d %d %d}", ch.name, ch.pixelType, ch.pLinear, ch.xSampling, ch.ySampling)
 }
 
 type chlist []channel

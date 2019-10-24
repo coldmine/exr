@@ -288,7 +288,7 @@ func Decode(path string) (image.Image, error) {
 			for y := yoffset; y < yoffset+block.height; y++ {
 				for x := 0; x < block.width; x++ {
 					c = rgba.RGBA64At(x, y)
-					v := parse.Uint16(raw[:s]) * 8 * 8
+					v := parse.Uint16(raw[:s]) * 2
 					raw = raw[s:]
 					switch ch.name {
 					case "R":
@@ -301,7 +301,7 @@ func Decode(path string) (image.Image, error) {
 						c.B = v
 						rgba.SetRGBA64(x, y, c)
 					case "A":
-						c.A = v
+						c.A = (1 << 16) - 1
 						rgba.SetRGBA64(x, y, c)
 					}
 				}

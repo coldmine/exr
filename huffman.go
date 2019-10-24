@@ -3,6 +3,7 @@ package exr
 import (
 	"container/heap"
 	"encoding/binary"
+	"fmt"
 )
 
 const (
@@ -373,9 +374,10 @@ func huffmanEncode(raw []byte, packs []uint64, runCode int) ([]byte, int) {
 func huffmanDecode(block blockInfo, data []byte, nBits int, dec hdec, packs []uint64, runCode int) []byte {
 	raw := make([]byte, block.width*block.height*block.pixsize)
 	w := newByteWriter(binary.LittleEndian, raw)
-	r := newBitReader(data, nBits)
+	r := newBitReader(data, nBits) // nBits
 	c := uint64(0)
 	lc := 0
+	lastd := 0
 READ:
 	for {
 		// read until c is full or reader is run out of bits
@@ -400,25 +402,27 @@ READ:
 		// process
 		for lc >= HUF_DECBITS {
 			pl := dec[(c>>(lc-HUF_DECBITS))&HUF_DECMASK]
+			d := 0
 			l := 0
 			if pl.len != 0 {
-				// short code
-				w.Uint16(uint16(packs[pl.lit]))
+				d = pl.lit
+				l = pl.len
 			} else {
 				// long code
 				found := false
-				for _, d := range pl.lits {
-					l = huffmanCodeLength(packs[d])
+				for _, lit := range pl.lits {
+					l = huffmanCodeLength(packs[lit])
 					if l > 64 {
 						panic("code length should not bigger than 64")
 					}
 					if l > lc {
 						continue READ
+						fmt.Println("continue read")
 					}
-					code := (c >> (lc - l)) & ((1 << l) - 1)
-					if huffmanCode(packs[d]) == code {
+					code := c >> (lc - l)
+					if huffmanCode(packs[lit]) == code {
 						found = true
-						w.Uint16(uint16(d))
+						d = lit
 						break
 					}
 				}
@@ -426,8 +430,24 @@ READ:
 					panic("long code not found")
 				}
 			}
-			c = (c << (64 - l)) >> (64 - l)
 			lc -= l
+			c = (c << (64 - lc)) >> (64 - lc)
+			if d == runCode {
+				if lc < 8 {
+					c = c<<8 | uint64(r.Read(8)[0])
+					lc += 8
+				}
+				lc -= 8
+				run := c >> lc
+				for run > 0 {
+					w.Uint16(uint16(lastd))
+					run--
+				}
+				c = (c << (64 - lc)) >> (64 - lc)
+			} else {
+				w.Uint16(uint16(d))
+				lastd = d
+			}
 		}
 	}
 	if lc != 0 {
